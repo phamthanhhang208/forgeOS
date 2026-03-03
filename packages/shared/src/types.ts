@@ -1,9 +1,25 @@
-import { DeploymentStatus, NodeStatus, ProjectMode, ProjectStatus } from './enums'
+import { ProjectMode, ProjectStatus, NodeStatus, DeploymentStatus } from './enums'
 
 export interface Agency {
   id: string
   name: string
   createdAt: string
+  updatedAt: string
+}
+
+export interface Deployment {
+  id: string
+  projectId: string
+  status: DeploymentStatus
+  githubRepoUrl: string | null
+  doAppUrl: string | null
+  zipReady: boolean
+  stepADone: boolean
+  stepBDone: boolean
+  stepCDone: boolean
+  stepDDone: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface AgentOutput {
@@ -11,25 +27,8 @@ export interface AgentOutput {
   projectId: string
   nodeId: number
   version: number
-  jsonPayload: Record<string, unknown>
   status: NodeStatus
-  rejectedReason?: string
-  approvedAt?: string
-  createdAt: string
-}
-
-export interface Deployment {
-  id: string
-  projectId: string
-  githubRepoUrl?: string
-  doAppId?: string
-  doAppUrl?: string
-  buildStatus: DeploymentStatus
-  stepADone: boolean
-  stepBDone: boolean
-  stepCDone: boolean
-  stepDDone: boolean
-  zipPath?: string
+  jsonPayload: unknown | null
   createdAt: string
   updatedAt: string
 }
@@ -37,15 +36,14 @@ export interface Deployment {
 export interface Project {
   id: string
   agencyId: string
-  concept: string
   mode: ProjectMode
+  concept: string
   status: ProjectStatus
   currentNode: number
-  iterationCount: number
   createdAt: string
   updatedAt: string
-  agentOutputs: AgentOutput[]
-  deployment?: Deployment
+  outputs?: AgentOutput[]
+  deployment?: Deployment | null
 }
 
 export interface PipelineNodeState {
