@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+// pipeline canvas component
 import {
     ReactFlow,
     Background,
