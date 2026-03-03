@@ -1,0 +1,104 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [pgvector(map: "vector")]
+}
+
+model Agency {
+  id        String         @id @default(cuid())
+  name      String
+  createdAt DateTime       @default(now())
+  projects  Project[]
+  memories  AgencyMemory[]
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  agencyId       String
+  agency         Agency        @relation(fields: [agencyId], references: [id])
+  concept        String
+  mode           ProjectMode   @default(NEW)
+  status         ProjectStatus @default(PENDING)
+  currentNode    Int           @default(0)
+  iterationCount Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  agentOutputs   AgentOutput[]
+  deployment     Deployment?
+}
+
+enum ProjectMode {
+  NEW
+  ITERATE
+}
+
+enum ProjectStatus {
+  PENDING
+  RUNNING
+  AWAITING_REVIEW
+  COMPLETED
+  FAILED
+}
+
+model AgentOutput {
+  id             String     @id @default(cuid())
+  projectId      String
+  project        Project    @relation(fields: [projectId], references: [id])
+  nodeId         Int
+  version        Int        @default(1)
+  jsonPayload    Json
+  status         NodeStatus @default(QUEUED)
+  rejectedReason String?
+  approvedAt     DateTime?
+  createdAt      DateTime   @default(now())
+}
+
+enum NodeStatus {
+  LOCKED
+  QUEUED
+  PROCESSING
+  REVIEW
+  APPROVED
+  FAILED
+  REGENERATING
+}
+
+model Deployment {
+  id            String           @id @default(cuid())
+  projectId     String           @unique
+  project       Project          @relation(fields: [projectId], references: [id])
+  githubRepoUrl String?
+  doAppId       String?
+  doAppUrl      String?
+  buildStatus   DeploymentStatus @default(PENDING)
+  stepADone     Boolean          @default(false)
+  stepBDone     Boolean          @default(false)
+  stepCDone     Boolean          @default(false)
+  stepDDone     Boolean          @default(false)
+  zipPath       String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+enum DeploymentStatus {
+  PENDING
+  CLONING
+  PUSHING
+  DEPLOYING
+  ACTIVE
+  FAILED
+}
+
+model AgencyMemory {
+  id             String                      @id @default(cuid())
+  agencyId       String
+  agency         Agency                      @relation(fields: [agencyId], references: [id])
+  projectSummary String
+  tags           String[]
+  embedding      Unsupported("vector(768)")?
+  createdAt      DateTime                    @default(now())
+}

@@ -1,0 +1,27 @@
+{
+  "name": "forgeos",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "seed": "tsx scripts/seed-agency-memory.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "msgpackr-extract", "prisma"]
+  },
+  "dependencies": {
+    "@prisma/client": "^7.0.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.0",
+    "turbo": "latest",
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "prisma": "^7.0.0"
+  }
+}
