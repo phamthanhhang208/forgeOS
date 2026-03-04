@@ -21,6 +21,7 @@ interface PipelineStore {
     sseConnected: boolean
     consoleLogs: ConsoleEntry[]
     consoleOpen: boolean
+    kanbanOpen: boolean
 
     // Actions
     initNodes: () => void
@@ -39,6 +40,8 @@ interface PipelineStore {
     resumePipeline: () => Promise<void>
     clearConsole: () => void
     toggleConsole: () => void
+    openKanban: () => void
+    closeKanban: () => void
 }
 
 let logIdCounter = 0
@@ -62,6 +65,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     sseConnected: false,
     consoleLogs: [],
     consoleOpen: false,
+    kanbanOpen: false,
 
     initNodes: () =>
         set({ nodes: defaultNodes(), deployment: null, activePanel: null, consoleLogs: [] }),
@@ -173,6 +177,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
                 n.id === nodeId ? { ...n, status: NodeStatus.APPROVED } : n
             ),
             activePanel: null,
+            kanbanOpen: nodeId === 3 ? true : s.kanbanOpen,
         }))
     },
 
@@ -228,4 +233,6 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
 
     clearConsole: () => set({ consoleLogs: [] }),
     toggleConsole: () => set((s) => ({ consoleOpen: !s.consoleOpen })),
+    openKanban: () => set({ kanbanOpen: true }),
+    closeKanban: () => set({ kanbanOpen: false }),
 }))

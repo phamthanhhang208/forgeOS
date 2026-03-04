@@ -35,14 +35,14 @@ export const ShipyardNode = memo(({ data }: { data: { status: NodeStatus } }) =>
             sourceHandle={undefined}
             targetHandle={Position.Left}
             className={`${isLocked
-                    ? 'opacity-40 grayscale border-border/50'
-                    : isComplete
-                        ? 'border-accent-success/50'
-                        : isFailed
-                            ? 'border-accent-danger/50'
-                            : isProcessing
-                                ? 'border-accent-secondary border-[1.5px]'
-                                : 'border-border/50'
+                ? 'opacity-40 grayscale border-border/50'
+                : isComplete
+                    ? 'border-accent-success/50'
+                    : isFailed
+                        ? 'border-accent-danger/50'
+                        : isProcessing
+                            ? 'border-accent-secondary border-[1.5px]'
+                            : 'border-border/50'
                 } ${isComplete ? 'w-[260px]' : 'w-[220px]'}`}
             glowClass={
                 isProcessing ? 'bg-accent-secondary/30 blur-md opacity-50' : ''

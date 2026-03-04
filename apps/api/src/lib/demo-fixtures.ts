@@ -13,6 +13,66 @@ export const DEMO_TIMING = {
     shipyardStepMs: 1200,
 }
 
+export const DEMO_CLARIFY_QUESTIONS = [
+    {
+        id: 'target_audience',
+        question: 'Who is your primary target audience for this portal?',
+        type: 'select' as const,
+        options: [
+            'Solo practitioners (1-2 attorneys)',
+            'Small law firms (3-15 attorneys)',
+            'Mid-size firms (15-50 attorneys)',
+            'Large firms (50+ attorneys)',
+            'In-house corporate legal teams',
+        ],
+    },
+    {
+        id: 'core_problem',
+        question: 'What is the #1 pain point you want to solve for your clients?',
+        type: 'text' as const,
+        placeholder: 'e.g., Clients constantly call to ask about case status updates',
+    },
+    {
+        id: 'existing_tools',
+        question: 'What tools are you currently using for client communication?',
+        type: 'multiselect' as const,
+        options: [
+            'Email only',
+            'Phone calls',
+            'Clio',
+            'MyCase',
+            'PracticePanther',
+            'Custom spreadsheets',
+            'No system in place',
+        ],
+    },
+    {
+        id: 'must_have_features',
+        question: 'Which features are absolute must-haves for your MVP?',
+        type: 'multiselect' as const,
+        options: [
+            'Secure document sharing',
+            'Case status tracking',
+            'Encrypted messaging',
+            'Invoice/billing viewer',
+            'Appointment scheduling',
+            'Multi-language support',
+        ],
+    },
+    {
+        id: 'monetization',
+        question: 'How do you plan to monetize this product?',
+        type: 'select' as const,
+        options: [
+            'Per-seat SaaS subscription',
+            'Freemium with premium tiers',
+            'Flat monthly fee per firm',
+            'Usage-based pricing',
+            'Not sure yet',
+        ],
+    },
+]
+
 // Node 1: Strategist
 export const DEMO_STRATEGIST = {
     targetAudience:

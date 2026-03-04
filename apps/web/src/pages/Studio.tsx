@@ -8,6 +8,7 @@ import { NodeStatus } from '@forgeos/shared'
 import { useSSE } from '../hooks/useSSE'
 import { PipelineCanvas } from '../components/canvas/PipelineCanvas'
 import { HITLPanel } from '../components/panels/HITLPanel'
+import { KanbanModal } from '../components/modals/KanbanModal'
 import { ConsolePanel } from '../components/panels/ConsolePanel'
 import { Project } from '@forgeos/shared'
 
@@ -25,11 +26,14 @@ export function Studio() {
     const approveNode = usePipelineStore((s) => s.approveNode)
     const retryNode = usePipelineStore((s) => s.retryNode)
     const resumePipeline = usePipelineStore((s) => s.resumePipeline)
+    const openKanban = usePipelineStore((s) => s.openKanban)
 
     const hydratedOnce = useRef(false)
 
     const reviewReadyNode = nodes.find((n) => n.status === NodeStatus.REVIEW)
     const failedNode = nodes.find((n) => n.status === NodeStatus.FAILED)
+    const techLeadNode = nodes[3]
+    const hasKanbanData = techLeadNode?.status === NodeStatus.APPROVED // Tech Lead is Node 3
     const hasActiveNodes = nodes.some(
         (n) => n.status === NodeStatus.QUEUED || n.status === NodeStatus.PROCESSING
     )
@@ -84,6 +88,19 @@ export function Studio() {
                         })
                     }
                 })
+
+                // Enforce Linear Progression UI Rule:
+                // If the pipeline is currently at node X (project.currentNode), 
+                // all nodes before X MUST visually appear as APPROVED to prevent UI glitching
+                // caused by abandoned 'QUEUED' versions from retries.
+                const currentNode = project.currentNode || 0;
+                for (let i = 0; i < currentNode; i++) {
+                    handleSSEEvent({
+                        type: 'NODE_STATUS',
+                        nodeId: i,
+                        status: NodeStatus.APPROVED,
+                    })
+                }
 
                 // Synthetic console logs from DB state — only on first load
                 if (!hydratedOnce.current) {
@@ -192,6 +209,15 @@ export function Studio() {
                 </div>
 
                 <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
+                    {hasKanbanData && (
+                        <button
+                            onClick={openKanban}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-bg-base border border-border rounded-md hover:bg-bg-elevated transition-colors"
+                            title="Open Kanban Board"
+                        >
+                            📋 Kanban Board
+                        </button>
+                    )}
                     <button
                         onClick={() => alert('Pause functionality coming soon!')}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-bg-base border border-border rounded-md hover:bg-bg-elevated transition-colors"
@@ -240,6 +266,7 @@ export function Studio() {
                 <div className="flex-1 relative min-h-0">
                     <PipelineCanvas concept={project.concept} />
                     <HITLPanel />
+                    <KanbanModal />
                 </div>
                 <ConsolePanel />
             </div>

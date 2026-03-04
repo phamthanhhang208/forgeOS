@@ -6,12 +6,16 @@ import {
     CreateProjectSchema,
     ApproveNodeSchema,
     RejectNodeSchema,
+    ClarifyConceptSchema,
     MAX_REGENERATIONS,
     NodeStatus,
 } from '@forgeos/shared'
+import type { ClarifyQuestion } from '@forgeos/shared'
 import { validate } from '../middleware/validate'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { publishEvent } from '../lib/pubsub'
+import { gradientClient } from '../lib/gradient'
+import { DEMO_CLARIFY_QUESTIONS, delay } from '../lib/demo-fixtures'
 import { createReadStream, existsSync } from 'fs'
 import path from 'path'
 
@@ -28,6 +32,56 @@ const pipelineQueue = new Queue('agentPipeline', {
         port: redisPort,
     },
 })
+
+// POST /api/projects/clarify — AI generates clarifying questions for a concept
+router.post(
+    '/clarify',
+    validate(ClarifyConceptSchema),
+    asyncHandler(async (req, res) => {
+        const { concept, demoMode } = req.body as { concept: string; demoMode?: boolean }
+
+        if (demoMode) {
+            await delay(1000)
+            res.json({ questions: DEMO_CLARIFY_QUESTIONS })
+            return
+        }
+
+        const systemPrompt = `You are a product discovery expert. Given a raw SaaS concept, generate 3-5 clarifying questions that will help an AI pipeline produce better results.
+
+Each question should help understand: target audience, core problem, existing solutions, must-have features, or monetization approach.
+
+CRITICAL: Respond ONLY with valid JSON. No markdown, no explanation. Pure JSON only.`
+
+        const userPrompt = `Generate clarifying questions for this SaaS concept: "${concept}"
+
+Return JSON with EXACTLY this structure:
+{
+  "questions": [
+    { "id": "unique_snake_case_id", "question": "The question text", "type": "text", "placeholder": "Helpful placeholder text" },
+    { "id": "another_id", "question": "Question text", "type": "select", "options": ["Option 1", "Option 2", "Option 3"] },
+    { "id": "multi_id", "question": "Question text", "type": "multiselect", "options": ["Option 1", "Option 2", "Option 3"] }
+  ]
+}
+
+Rules:
+- Generate 3-5 questions total
+- "type" must be one of: "text", "select", "multiselect"
+- "text" questions must have a "placeholder" field
+- "select" and "multiselect" questions must have an "options" array with 3-6 options
+- Questions should be specific to the concept, not generic
+- Each question should surface a different aspect (audience, problem, features, competition, monetization)
+- Keep questions concise and actionable`
+
+        try {
+            const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 1500, temperature: 0.6 })
+            const parsed = gradientClient.parseJSON<{ questions: ClarifyQuestion[] }>(raw)
+            res.json({ questions: parsed.questions })
+        } catch (err: unknown) {
+            console.error('[POST /clarify] LLM error:', err)
+            res.status(500).json({ error: 'Failed to generate clarifying questions' })
+        }
+    })
+)
 
 // POST /api/projects — Create project, start pipeline
 router.post(
@@ -442,6 +496,25 @@ router.post(
                     status: 'QUEUED',
                 },
             })
+
+            // Also lock downstream nodes so they don't hydrate as APPROVED from a previous run
+            for (const nId of [2, 3]) {
+                const existingDownstream = await prisma.agentOutput.findFirst({
+                    where: { projectId: id, nodeId: nId },
+                    orderBy: { version: 'desc' },
+                })
+                if (existingDownstream) {
+                    await prisma.agentOutput.create({
+                        data: {
+                            projectId: id,
+                            nodeId: nId,
+                            version: existingDownstream.version + 1,
+                            jsonPayload: {},
+                            status: 'LOCKED',
+                        },
+                    })
+                }
+            }
         } else {
             // No output exists — create initial stubs
             await prisma.agentOutput.createMany({

@@ -98,6 +98,38 @@ export async function runShipyard(data: ShipyardJobData): Promise<Record<string,
             )
             const envExample = techLeadOutput.envVarsRequired.map(v => `${v}=`).join('\n')
             await fs.promises.writeFile(path.join(localPath, '.env.example'), envExample)
+
+            // Scaffold API Routes
+            // Group endpoints by their base path (e.g. /api/users/:id -> /api/users/[id])
+            const routeGroups = new Map<string, Array<{ method: string; description: string }>>()
+            for (const ep of techLeadOutput.apiEndpoints) {
+                // Convert express style params /:id to Next.js App Router /[id]
+                let nextPath = ep.path.replace(/:([a-zA-Z0-9_]+)/g, '[$1]')
+                if (nextPath.startsWith('/')) nextPath = nextPath.slice(1)
+
+                const existing = routeGroups.get(nextPath) || []
+                existing.push({ method: ep.method, description: ep.description })
+                routeGroups.set(nextPath, existing)
+            }
+
+            for (const [routePath, endpoints] of routeGroups.entries()) {
+                const fullDirPath = path.join(localPath, 'app', routePath)
+                await fs.promises.mkdir(fullDirPath, { recursive: true })
+
+                let fileContent = "import { NextResponse } from 'next/server'\n\n"
+
+                for (const ep of endpoints) {
+                    const method = ep.method.toUpperCase()
+                    if (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+                        fileContent += `// ${ep.description}\n`
+                        fileContent += `export async function ${method}(request: Request, context: { params: Promise<{ [key: string]: string }> }) {\n`
+                        fileContent += `  return NextResponse.json({ message: 'Not implemented: ${method} /${routePath}' }, { status: 501 })\n`
+                        fileContent += `}\n\n`
+                    }
+                }
+
+                await fs.promises.writeFile(path.join(fullDirPath, 'route.ts'), fileContent)
+            }
         })
 
         deployment = await prisma.deployment.update({
@@ -117,8 +149,10 @@ export async function runShipyard(data: ShipyardJobData): Promise<Record<string,
         let githubFullName: string | undefined
 
         if (mode === 'NEW') {
+            const sanitizedConcept = concept.replace(/\r?\n|\r/g, ' ')
+            const safeDescription = `ForgeOS generated: ${sanitizedConcept.slice(0, 150)}${sanitizedConcept.length > 150 ? '...' : ''}`
             const repo = await timed(projectId, 'Step B: create GitHub repo', () =>
-                github.createRepo(repoSlug, `ForgeOS generated: ${concept}`, settings)
+                github.createRepo(repoSlug, safeDescription, settings)
             )
             githubRepoUrl = repo.html_url
             githubFullName = repo.full_name

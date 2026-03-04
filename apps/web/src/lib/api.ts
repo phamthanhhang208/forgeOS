@@ -1,4 +1,4 @@
-import type { Project, AgencySettings } from '@forgeos/shared'
+import type { Project, AgencySettings, ClarifyQuestion } from '@forgeos/shared'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -20,6 +20,12 @@ const isDemoMode = () =>
 export const api = {
     createProject: (body: { concept: string; agencyId: string; mode?: string; demoMode?: boolean }) =>
         request<{ projectId: string }>('/api/projects', {
+            method: 'POST',
+            body: JSON.stringify({ ...body, demoMode: body.demoMode ?? isDemoMode() }),
+        }),
+
+    clarifyConcept: (body: { concept: string; agencyId: string; demoMode?: boolean }) =>
+        request<{ questions: ClarifyQuestion[] }>('/api/projects/clarify', {
             method: 'POST',
             body: JSON.stringify({ ...body, demoMode: body.demoMode ?? isDemoMode() }),
         }),

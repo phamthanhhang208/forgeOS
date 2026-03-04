@@ -62,6 +62,7 @@ export interface Project {
   updatedAt: string
   agentOutputs?: AgentOutput[]
   deployment?: Deployment | null
+  createdAt: string
 }
 
 export interface PipelineNodeState {

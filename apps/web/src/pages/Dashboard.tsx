@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Rocket, Settings, Trash2, Zap } from 'lucide-react'
+import { Plus, Rocket, Settings, Trash2, Zap } from 'lucide-react'
 import { Project } from '@forgeos/shared'
 import { toast } from 'sonner'
 import { SettingsModal } from '../components/modals/SettingsModal'
+import { ConceptWizard } from '../components/modals/ConceptWizard'
 
 function SkeletonCard() {
     return (
@@ -23,8 +24,6 @@ export function Dashboard() {
     const navigate = useNavigate()
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-    const [concept, setConcept] = useState('')
-    const [isSubmitting, setIsSubmitting] = useState(false)
     const queryClient = useQueryClient()
 
     const agencyId = 'demo-agency-cuid'
@@ -36,17 +35,13 @@ export function Dashboard() {
         refetchInterval: 5000,
     })
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (concept.length < 10) return
-
-        setIsSubmitting(true)
+    const handleProjectSubmit = async (concept: string) => {
         try {
             const { projectId } = await api.createProject({ concept, agencyId })
             navigate(`/studio/${projectId}`)
-        } catch (err: any) {
-            toast.error('Failed to create project', { description: err.message })
-            setIsSubmitting(false)
+        } catch (err: unknown) {
+            toast.error('Failed to create project', { description: err instanceof Error ? err.message : 'Unknown error' })
+            throw err
         }
     }
 
@@ -191,8 +186,8 @@ export function Dashboard() {
                                                     await api.deleteProject(project.id)
                                                     queryClient.invalidateQueries({ queryKey: ['projects'] })
                                                     toast.success('Project deleted')
-                                                } catch (err: any) {
-                                                    toast.error('Failed to delete', { description: err.message })
+                                                } catch (err: unknown) {
+                                                    toast.error('Failed to delete', { description: err instanceof Error ? err.message : 'Unknown error' })
                                                 }
                                             }}
                                         >
@@ -207,63 +202,11 @@ export function Dashboard() {
             </div>
 
             {isModalOpen && (
-                <>
-                    <div
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-                        onClick={() => !isSubmitting && setIsModalOpen(false)}
-                    />
-                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-bg-surface border border-border rounded-xl shadow-2xl z-50 p-6 flex flex-col gap-5">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-lg font-bold">Launch New Project</h2>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                disabled={isSubmitting}
-                                className="text-text-muted hover:text-text-primary transition-colors"
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-semibold text-text-muted">
-                                    Your SaaS Idea
-                                </label>
-                                <textarea
-                                    value={concept}
-                                    onChange={(e) => setConcept(e.target.value)}
-                                    disabled={isSubmitting}
-                                    placeholder='e.g. "Client portal for a law firm"'
-                                    className="w-full h-28 bg-bg-base border border-border rounded-md p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-all resize-none"
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div className="text-xs text-text-muted bg-bg-elevated p-3 rounded-md border border-border">
-                                <span className="font-bold text-text-primary">
-                                    Tip:
-                                </span>{' '}
-                                Be specific. Include the target audience and the core
-                                problem you're solving.
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                                <button
-                                    type="submit"
-                                    disabled={concept.length < 10 || isSubmitting}
-                                    className="bg-accent-primary text-bg-base px-5 py-2.5 rounded-md font-bold text-sm hover:bg-[#00e5ff] disabled:opacity-50 transition-colors flex items-center gap-2"
-                                >
-                                    {isSubmitting ? (
-                                        <Loader2 size={16} className="animate-spin" />
-                                    ) : (
-                                        <Rocket size={16} />
-                                    )}
-                                    Deploy to Pipeline
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </>
+                <ConceptWizard
+                    agencyId={agencyId}
+                    onClose={() => setIsModalOpen(false)}
+                    onSubmit={handleProjectSubmit}
+                />
             )}
 
             {isSettingsOpen && (
@@ -272,3 +215,4 @@ export function Dashboard() {
         </div>
     )
 }
+
