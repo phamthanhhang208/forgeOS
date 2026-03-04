@@ -9,6 +9,7 @@ import { useSSE } from '../hooks/useSSE'
 import { PipelineCanvas } from '../components/canvas/PipelineCanvas'
 import { HITLPanel } from '../components/panels/HITLPanel'
 import { KanbanModal } from '../components/modals/KanbanModal'
+import { ConceptDetailModal } from '../components/modals/ConceptDetailModal'
 import { ConsolePanel } from '../components/panels/ConsolePanel'
 import { Project } from '@forgeos/shared'
 
@@ -33,7 +34,10 @@ export function Studio() {
     const reviewReadyNode = nodes.find((n) => n.status === NodeStatus.REVIEW)
     const failedNode = nodes.find((n) => n.status === NodeStatus.FAILED)
     const techLeadNode = nodes[3]
+    const shipyardNode = nodes[4]
     const hasKanbanData = techLeadNode?.status === NodeStatus.APPROVED // Tech Lead is Node 3
+    const hasReachedShipyard =
+        shipyardNode?.status !== NodeStatus.LOCKED || (project?.currentNode ?? 0) >= 4
     const hasActiveNodes = nodes.some(
         (n) => n.status === NodeStatus.QUEUED || n.status === NodeStatus.PROCESSING
     )
@@ -126,6 +130,7 @@ export function Studio() {
                     githubUrl: dep.githubRepoUrl || '',
                     doAppUrl: dep.doAppUrl || '',
                     zipReady: !!dep.zipPath,
+                    doAppId: dep.doAppId || undefined,
                 })
 
                 // Hydrate individual shipyard steps from deployment flags
@@ -227,8 +232,9 @@ export function Studio() {
                     </button>
                     <button
                         onClick={() => startPipeline()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-bg-base border border-border rounded-md hover:bg-bg-elevated transition-colors"
-                        title="Retry entire pipeline from Node 1"
+                        disabled={hasReachedShipyard}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-text-muted bg-bg-base border border-border rounded-md transition-colors hover:text-text-primary hover:bg-bg-elevated disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-text-muted disabled:hover:bg-bg-base"
+                        title={hasReachedShipyard ? 'Disabled after reaching Shipyard stage' : 'Retry entire pipeline from Node 1'}
                     >
                         <RotateCcw size={12} /> Retry (from Node 1)
                     </button>
@@ -267,6 +273,7 @@ export function Studio() {
                     <PipelineCanvas concept={project.concept} />
                     <HITLPanel />
                     <KanbanModal />
+                    <ConceptDetailModal concept={project.concept} />
                 </div>
                 <ConsolePanel />
             </div>

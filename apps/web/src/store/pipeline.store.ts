@@ -22,6 +22,7 @@ interface PipelineStore {
     consoleLogs: ConsoleEntry[]
     consoleOpen: boolean
     kanbanOpen: boolean
+    conceptModalOpen: boolean
 
     // Actions
     initNodes: () => void
@@ -42,6 +43,8 @@ interface PipelineStore {
     toggleConsole: () => void
     openKanban: () => void
     closeKanban: () => void
+    openConceptModal: () => void
+    closeConceptModal: () => void
 }
 
 let logIdCounter = 0
@@ -66,9 +69,10 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     consoleLogs: [],
     consoleOpen: false,
     kanbanOpen: false,
+    conceptModalOpen: false,
 
     initNodes: () =>
-        set({ nodes: defaultNodes(), deployment: null, activePanel: null, consoleLogs: [] }),
+        set({ nodes: defaultNodes(), deployment: null, activePanel: null, consoleLogs: [], conceptModalOpen: false }),
 
     setProjectId: (id) => set({ projectId: id }),
 
@@ -103,7 +107,11 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
                     const key = stepMap[event.step]
                     if (key) {
                         set((s) => ({
-                            deployment: { ...s.deployment, [key]: true },
+                            deployment: {
+                                ...s.deployment,
+                                [key]: true,
+                                ...(event.doAppId ? { doAppId: event.doAppId } : {}),
+                            },
                         }))
                     }
                 }
@@ -115,6 +123,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
                         ...s.deployment,
                         githubRepoUrl: event.githubUrl,
                         doAppUrl: event.doAppUrl,
+                        doAppId: event.doAppId ?? s.deployment?.doAppId ?? null,
                         zipReady: event.zipReady,
                     },
                 }))
@@ -235,4 +244,6 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     toggleConsole: () => set((s) => ({ consoleOpen: !s.consoleOpen })),
     openKanban: () => set({ kanbanOpen: true }),
     closeKanban: () => set({ kanbanOpen: false }),
+    openConceptModal: () => set({ conceptModalOpen: true }),
+    closeConceptModal: () => set({ conceptModalOpen: false }),
 }))

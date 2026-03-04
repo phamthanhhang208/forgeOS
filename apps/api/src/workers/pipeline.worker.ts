@@ -108,6 +108,7 @@ const worker = new Worker<PipelineJobData>(
                         githubUrl: DEMO_SHIPYARD.githubRepoUrl,
                         doAppUrl: DEMO_SHIPYARD.doAppUrl,
                         zipReady: false,
+                        doAppId: undefined,
                     })
 
                     await prisma.agentOutput.updateMany({

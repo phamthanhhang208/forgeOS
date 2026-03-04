@@ -223,7 +223,7 @@ export async function runShipyard(data: ShipyardJobData): Promise<Record<string,
             where: { projectId },
             data: { stepCDone: true, doAppId: app.id },
         })
-        await publishEvent(projectId, { type: 'SHIPYARD_STEP', step: 'C', status: 'DONE' })
+        await publishEvent(projectId, { type: 'SHIPYARD_STEP', step: 'C', status: 'DONE', doAppId: app.id })
         await log(projectId, 'info', `Step C total: ${Date.now() - stepCStart}ms`)
     }
 
@@ -252,6 +252,7 @@ export async function runShipyard(data: ShipyardJobData): Promise<Record<string,
             githubUrl: deployment.githubRepoUrl ?? '',
             doAppUrl: liveUrl ?? '',
             zipReady: !!deployment.zipPath,
+            doAppId: deployment.doAppId ?? undefined,
         })
         await log(projectId, 'info', `Step D total: ${Date.now() - stepDStart}ms`)
 
