@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Rocket, Settings, Trash2, Zap } from 'lucide-react'
-import { Project } from '@forgeos/shared'
+import { NodeStatus, Project, ProjectStatus } from '@forgeos/shared'
 import { toast } from 'sonner'
 import { SettingsModal } from '../components/modals/SettingsModal'
 import { ConceptWizard } from '../components/modals/ConceptWizard'
@@ -45,8 +45,82 @@ export function Dashboard() {
         }
     }
 
+    const getLatestByNode = (p: Project) => {
+        const outputs = p.agentOutputs ?? []
+        const latestByNode = new Map<number, (typeof outputs)[number]>()
+        for (const output of outputs) {
+            const prev = latestByNode.get(output.nodeId)
+            if (!prev || output.version > prev.version) {
+                latestByNode.set(output.nodeId, output)
+            }
+        }
+        return latestByNode
+    }
+
+    const getEffectiveStatus = (p: Project): ProjectStatus => {
+        const latestByNode = getLatestByNode(p)
+
+        const latestStatuses = Array.from(latestByNode.values()).map((o) => o.status)
+
+        if (latestStatuses.includes(NodeStatus.FAILED)) {
+            return ProjectStatus.FAILED
+        }
+
+        const shipyardStatus = latestByNode.get(4)?.status
+        const isDeploymentComplete =
+            shipyardStatus === NodeStatus.APPROVED ||
+            p.deployment?.buildStatus === 'ACTIVE' ||
+            !!p.deployment?.stepDDone ||
+            p.status === ProjectStatus.COMPLETED
+        if (isDeploymentComplete) {
+            return ProjectStatus.COMPLETED
+        }
+
+        if (latestStatuses.includes(NodeStatus.REVIEW)) {
+            return ProjectStatus.AWAITING_REVIEW
+        }
+
+        if (
+            latestStatuses.some((s) =>
+                [NodeStatus.QUEUED, NodeStatus.PROCESSING, NodeStatus.REGENERATING].includes(s)
+            )
+        ) {
+            return ProjectStatus.RUNNING
+        }
+
+        return p.status
+    }
+
+    const getDisplayNode = (p: Project): number => {
+        const latestByNode = getLatestByNode(p)
+
+        const failedNode = Array.from(latestByNode.values())
+            .filter((o) => o.status === NodeStatus.FAILED)
+            .sort((a, b) => b.version - a.version)[0]
+        if (failedNode) return failedNode.nodeId
+
+        const reviewNode = Array.from(latestByNode.values())
+            .find((o) => o.status === NodeStatus.REVIEW)
+        if (reviewNode) return reviewNode.nodeId
+
+        const activeNode = Array.from(latestByNode.values())
+            .find((o) => [NodeStatus.QUEUED, NodeStatus.PROCESSING, NodeStatus.REGENERATING].includes(o.status))
+        if (activeNode) return activeNode.nodeId
+
+        if (
+            latestByNode.get(4)?.status === NodeStatus.APPROVED ||
+            p.deployment?.buildStatus === 'ACTIVE' ||
+            p.deployment?.stepDDone
+        ) {
+            return 4
+        }
+
+        return p.currentNode
+    }
+
     const getStatusBadge = (p: Project) => {
-        switch (p.status) {
+        const status = getEffectiveStatus(p)
+        switch (status) {
             case 'COMPLETED':
                 return (
                     <span className="px-2 py-0.5 rounded text-xs font-bold bg-accent-success/20 text-accent-success">
@@ -74,7 +148,7 @@ export function Dashboard() {
             default:
                 return (
                     <span className="px-2 py-0.5 rounded text-xs font-bold bg-border text-text-muted">
-                        {p.status}
+                        {status}
                     </span>
                 )
         }
@@ -163,7 +237,7 @@ export function Dashboard() {
                                                 ).toLocaleDateString()}
                                             </span>
                                             <span>·</span>
-                                            <span>Node {project.currentNode}</span>
+                                            <span>Node {getDisplayNode(project)}</span>
                                         </div>
                                     </div>
                                     <div className="shrink-0 flex gap-2">
