@@ -156,7 +156,8 @@ export const ShipyardNode = memo(
                 Failed
               </div>
               <div className="text-[10px] leading-relaxed text-text-muted bg-bg-elevated/40 border border-border/60 rounded-md px-2 py-1.5">
-                Fix code/build errors in your repo or deployment, then retry here.
+                Fix code/build errors in your repo or deployment, then retry
+                here.
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {deployment?.githubRepoUrl && (
