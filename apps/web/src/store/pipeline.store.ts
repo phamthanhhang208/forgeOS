@@ -3,6 +3,14 @@ import { NodeStatus, NODE_LABELS } from '@forgeos/shared'
 import type { PipelineNodeState, SSEEvent, Deployment } from '@forgeos/shared'
 import { api } from '../lib/api'
 
+export interface ConsoleEntry {
+    id: number
+    nodeId: number
+    level: 'info' | 'warn' | 'error'
+    message: string
+    timestamp: string
+}
+
 interface PipelineStore {
     // State
     projectId: string | null
@@ -10,6 +18,9 @@ interface PipelineStore {
     deployment: Partial<Deployment> | null
     activePanel: number | null // which node's drawer is open
     demoMode: boolean
+    sseConnected: boolean
+    consoleLogs: ConsoleEntry[]
+    consoleOpen: boolean
 
     // Actions
     initNodes: () => void
@@ -17,12 +28,20 @@ interface PipelineStore {
     handleSSEEvent: (event: SSEEvent) => void
     openPanel: (nodeId: number) => void
     closePanel: () => void
+    setSseConnected: (connected: boolean) => void
     approveNode: (
         nodeId: number,
         editedPayload?: Record<string, unknown>
     ) => Promise<void>
     rejectNode: (nodeId: number, feedback: string) => Promise<void>
+    retryNode: (nodeId: number) => Promise<void>
+    startPipeline: () => Promise<void>
+    resumePipeline: () => Promise<void>
+    clearConsole: () => void
+    toggleConsole: () => void
 }
+
+let logIdCounter = 0
 
 const defaultNodes = (): PipelineNodeState[] =>
     Array.from({ length: 5 }, (_, i) => ({
@@ -40,9 +59,12 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     deployment: null,
     activePanel: null,
     demoMode: new URLSearchParams(window.location.search).get('demo') === 'true',
+    sseConnected: false,
+    consoleLogs: [],
+    consoleOpen: false,
 
     initNodes: () =>
-        set({ nodes: defaultNodes(), deployment: null, activePanel: null }),
+        set({ nodes: defaultNodes(), deployment: null, activePanel: null, consoleLogs: [] }),
 
     setProjectId: (id) => set({ projectId: id }),
 
@@ -93,9 +115,46 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
                     },
                 }))
                 break
-            case 'ERROR':
-                // Optional handle error UI state here. We'll handle toast component-side.
+            case 'LOG': {
+                const entry: ConsoleEntry = {
+                    id: ++logIdCounter,
+                    nodeId: event.nodeId,
+                    level: event.level,
+                    message: event.message,
+                    timestamp: event.timestamp,
+                }
+                set((s) => ({
+                    consoleLogs: [...s.consoleLogs.slice(-200), entry], // keep last 200
+                    consoleOpen: event.level === 'error' ? true : s.consoleOpen, // auto-open on errors
+                }))
                 break
+            }
+            case 'ERROR': {
+                const errorEntry: ConsoleEntry = {
+                    id: ++logIdCounter,
+                    nodeId: event.nodeId,
+                    level: 'error',
+                    message: event.message,
+                    timestamp: new Date().toISOString(),
+                }
+                set((s) => {
+                    const newNodes = [...s.nodes]
+                    if (event.nodeId !== undefined && newNodes[event.nodeId]) {
+                        newNodes[event.nodeId] = {
+                            ...newNodes[event.nodeId],
+                            status: NodeStatus.FAILED,
+                            error: event.message
+                        }
+                    }
+
+                    return {
+                        consoleLogs: [...s.consoleLogs.slice(-200), errorEntry],
+                        consoleOpen: true, // auto-open on errors
+                        nodes: newNodes,
+                    }
+                })
+                break
+            }
             case 'HEARTBEAT':
                 break
         }
@@ -103,6 +162,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
 
     openPanel: (nodeId) => set({ activePanel: nodeId }),
     closePanel: () => set({ activePanel: null }),
+    setSseConnected: (connected) => set({ sseConnected: connected }),
 
     approveNode: async (nodeId, editedPayload) => {
         const { projectId } = get()
@@ -133,4 +193,39 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
             activePanel: null,
         }))
     },
+
+    retryNode: async (nodeId) => {
+        const { projectId } = get()
+        if (!projectId) return
+        await api.retryNode(projectId, nodeId)
+        set((s) => ({
+            nodes: s.nodes.map((n) =>
+                n.id === nodeId ? { ...n, status: NodeStatus.QUEUED } : n
+            ),
+        }))
+    },
+
+    startPipeline: async () => {
+        const { projectId } = get()
+        if (!projectId) return
+        await api.startPipeline(projectId)
+        set((s) => ({
+            nodes: s.nodes.map((n) => {
+                if (n.id === 0) return n // input node stays APPROVED
+                if (n.id === 1) return { ...n, status: NodeStatus.QUEUED, payload: null, version: 1, regenerationCount: 0 }
+                return { ...n, status: NodeStatus.LOCKED, payload: null, version: 1, regenerationCount: 0 }
+            }),
+            activePanel: null,
+            deployment: null,
+        }))
+    },
+
+    resumePipeline: async () => {
+        const { projectId } = get()
+        if (!projectId) return
+        await api.resumePipeline(projectId)
+    },
+
+    clearConsole: () => set({ consoleLogs: [] }),
+    toggleConsole: () => set((s) => ({ consoleOpen: !s.consoleOpen })),
 }))

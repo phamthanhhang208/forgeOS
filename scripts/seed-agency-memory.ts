@@ -1,84 +1,112 @@
-import 'dotenv/config'
-import { PrismaClient } from '@prisma/client'
-import { gradientClient } from '../apps/api/src/lib/gradient'
+// Uploads demo project summaries to DO Spaces → triggers Gradient KB re-index
 
-const prisma = new PrismaClient()
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import * as dotenv from 'dotenv'
+dotenv.config()
 
-const DEMO_PROJECTS = [
+const spaces = new S3Client({
+    endpoint: `https://${process.env.DO_SPACES_REGION}.digitaloceanspaces.com`,
+    region: process.env.DO_SPACES_REGION ?? 'sgp1',
+    credentials: {
+        accessKeyId: process.env.DO_SPACES_KEY!,
+        secretAccessKey: process.env.DO_SPACES_SECRET!,
+    },
+})
+
+const BUCKET = process.env.DO_SPACES_BUCKET!
+const KB_UUID = process.env.DO_KNOWLEDGE_BASE_UUID!
+const DO_API_TOKEN = process.env.DO_API_TOKEN!
+
+const DEMO_MEMORIES = [
     {
-        summary:
-            'B2B invoice management SaaS for freelancers. Features: auto-invoice generation, payment tracking, client portal, Stripe integration. Stack: Next.js, PostgreSQL, Stripe. Successfully launched with 200 beta users.',
-        tags: ['b2b', 'fintech', 'invoicing', 'freelancer', 'stripe', 'saas'],
+        filename: 'memory-01-invoicing.txt',
+        content: `Past Project: B2B Invoice Management SaaS for Freelancers
+Target Audience: Independent freelancers and consultants
+Stack: Next.js, PostgreSQL, Stripe, SendGrid
+Key Features: Auto-invoice generation, payment tracking, client portal, Stripe integration
+Outcome: Launched with 200 beta users. Reduced invoice admin time by 70%.
+Tags: b2b, fintech, invoicing, freelancer, stripe, saas`,
     },
     {
-        summary:
-            'Client portal for a digital marketing agency. Features: campaign dashboard, report sharing, approval workflows, real-time notifications. Stack: Next.js, PostgreSQL, Redis. Reduced client communication overhead by 60%.',
-        tags: ['b2b', 'agency', 'portal', 'dashboard', 'marketing', 'collaboration'],
+        filename: 'memory-02-marketing-portal.txt',
+        content: `Past Project: Client Portal for a Digital Marketing Agency
+Target Audience: Marketing agencies managing multiple clients
+Stack: Next.js, PostgreSQL, Redis, Slack integration
+Key Features: Campaign dashboard, report sharing, approval workflows, real-time notifications
+Outcome: Reduced client communication overhead by 60%.
+Tags: b2b, agency, portal, dashboard, marketing, collaboration`,
     },
     {
-        summary:
-            'Project and case tracker for a law firm. Features: matter management, time tracking, billing, document storage, client updates. Stack: Next.js, PostgreSQL, S3. HIPAA-adjacent compliance patterns applied.',
-        tags: ['legal', 'b2b', 'tracker', 'billing', 'documents', 'professional-services'],
+        filename: 'memory-03-law-firm.txt',
+        content: `Past Project: Case Tracker for a Law Firm
+Target Audience: Small to mid-size law firms (5-50 attorneys)
+Stack: Next.js, PostgreSQL, S3 document storage
+Key Features: Matter management, time tracking, billing, document storage, client updates
+Outcome: Reduced billing disputes by 40%. HIPAA-adjacent compliance applied.
+Tags: legal, b2b, tracker, billing, documents, professional-services`,
     },
     {
-        summary:
-            'Analytics and inventory dashboard for Shopify e-commerce sellers. Features: multi-store support, profit margin calculator, reorder alerts, competitor price tracking. Stack: Next.js, PostgreSQL, Shopify API.',
-        tags: ['ecommerce', 'shopify', 'analytics', 'inventory', 'dashboard', 'retail'],
+        filename: 'memory-04-shopify-analytics.txt',
+        content: `Past Project: Analytics Dashboard for Shopify Sellers
+Target Audience: Shopify store owners managing 1-10 stores
+Stack: Next.js, PostgreSQL, Shopify API, Redis caching
+Key Features: Multi-store support, profit margin calculator, reorder alerts, price tracking
+Outcome: Merchants reported 25% improvement in inventory decisions.
+Tags: ecommerce, shopify, analytics, inventory, dashboard, retail`,
     },
     {
-        summary:
-            'Team knowledge base for remote-first startups. Features: AI-powered search, version history, team wikis, onboarding flows, Slack integration. Stack: Next.js, PostgreSQL, pgvector for semantic search.',
-        tags: ['saas', 'knowledge-management', 'remote', 'teams', 'ai', 'documentation'],
+        filename: 'memory-05-knowledge-base.txt',
+        content: `Past Project: Team Knowledge Base for Remote Startups
+Target Audience: Remote teams of 10-100 people
+Stack: Next.js, PostgreSQL, vector search, Slack integration
+Key Features: AI-powered search, version history, team wikis, onboarding flows
+Outcome: New employee onboarding reduced from 2 weeks to 3 days.
+Tags: saas, knowledge-management, remote, teams, ai, documentation`,
     },
 ]
 
-const DEMO_AGENCY_ID = process.env.DEMO_AGENCY_ID ?? 'demo-agency-cuid'
-
 async function seed() {
-    console.log('🌱 Seeding agency memory...')
+    console.log('Seeding agency memories to DO Spaces...')
 
-    // Upsert demo agency
-    await prisma.agency.upsert({
-        where: { id: DEMO_AGENCY_ID },
-        create: { id: DEMO_AGENCY_ID, name: 'Demo Agency' },
-        update: {},
-    })
-
-    // Delete existing memories for clean re-seed
-    await prisma.agencyMemory.deleteMany({ where: { agencyId: DEMO_AGENCY_ID } })
-
-    // Embed all summaries in one batch call
-    const embeddings = await gradientClient.embed({
-        texts: DEMO_PROJECTS.map((p) => p.summary),
-    })
-
-    // Insert each memory with its embedding
-    for (let i = 0; i < DEMO_PROJECTS.length; i++) {
-        const project = DEMO_PROJECTS[i]
-        const embedding = embeddings[i]
-
-        await prisma.$executeRaw`
-      INSERT INTO "AgencyMemory" (id, "agencyId", "projectSummary", tags, embedding, "createdAt")
-      VALUES (
-        ${`memory-${i + 1}`},
-        ${DEMO_AGENCY_ID},
-        ${project.summary},
-        ${project.tags},
-        ${JSON.stringify(embedding)}::vector,
-        NOW()
-      )
-    `
-        console.log(`  ✓ Seeded memory ${i + 1}/5: ${project.tags[0]}`)
+    for (const memory of DEMO_MEMORIES) {
+        await spaces.send(
+            new PutObjectCommand({
+                Bucket: BUCKET,
+                Key: `agency-memory/${memory.filename}`,
+                Body: memory.content,
+                ContentType: 'text/plain',
+            })
+        )
+        console.log(`  + ${memory.filename}`)
     }
 
-    console.log('✅ Agency memory seeded successfully')
-    console.log(`   Agency ID: ${DEMO_AGENCY_ID}`)
-    console.log(`   Memories: ${DEMO_PROJECTS.length}`)
+    console.log('\nTriggering Knowledge Base re-index...')
+
+    const res = await fetch(
+        `https://api.digitalocean.com/v2/gen-ai/knowledge_bases/${KB_UUID}/datasources/index`,
+        {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${DO_API_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+        }
+    )
+
+    if (res.ok) {
+        console.log('  Indexing job started')
+        console.log('\nIndexing takes ~5-10 minutes.')
+        console.log('Check progress: cloud.digitalocean.com -> Agent Platform -> Knowledge Bases')
+    } else {
+        const err = await res.text()
+        console.error('  Failed to trigger indexing:', err)
+        console.log('\nYou can manually trigger it from the DO Console -> Knowledge Base -> Re-index')
+    }
+
+    console.log('\nSeed upload complete!')
 }
 
-seed()
-    .catch((e) => {
-        console.error('Seed failed:', e)
-        process.exit(1)
-    })
-    .finally(() => prisma.$disconnect())
+seed().catch((e) => {
+    console.error('Seed failed:', e)
+    process.exit(1)
+})

@@ -33,44 +33,66 @@ export async function runTechLead(data: {
     analystOutput: AnalystOutput
     rejectionFeedback?: string
 }): Promise<TechLeadOutput> {
-    const systemPrompt = `You are the Tech Lead agent for a software agency incubation platform.
-You design concrete system architectures for Next.js SaaS products.
-You must produce valid Prisma schema syntax. Be precise and production-ready.
-CRITICAL: Respond ONLY with valid JSON. The prismaSchemaDelta field must be valid Prisma syntax as a JSON string.`
+    const systemPrompt = `You are a seasoned Tech Lead and software architect specializing in modern SaaS products built with Next.js. You've led engineering teams at Series A startups and know how to scope work realistically.
 
-    const userPrompt = `Design the technical architecture for this SaaS product.
+Your technical plan will be read by BOTH developers (who need accuracy) and non-technical founders (who need to understand the build timeline and complexity). Write feature and endpoint descriptions in plain English.
 
-Concept: "${data.concept}"
+Produce working, valid Prisma schema syntax — this will be directly used in the codebase.
 
-Strategy Summary: Target audience: ${data.strategyOutput.targetAudience}
-Key features: ${data.strategyOutput.mvpFeatures.map((f) => f.name).join(', ')}
+CRITICAL: Respond ONLY with valid JSON. The prismaSchemaDelta field must contain valid Prisma schema syntax escaped as a JSON string.`
 
-Data Entities from BA:
-${data.analystOutput.dataEntities.map((e) => `- ${e.name}: ${e.fields.map((f) => `${f.name}(${f.type})`).join(', ')}`).join('\n')}
+    const userPrompt = `Design the technical architecture and build plan for this SaaS product.
 
-Base Prisma schema already in boilerplate (extend this, don't repeat User model):
+Product Concept: "${data.concept}"
+
+Target Audience: ${data.strategyOutput.targetAudience}
+Must-Have Features: ${data.strategyOutput.mvpFeatures.filter(f => f.priority === 'MUST').map(f => f.name).join(', ')}
+Should-Have Features: ${data.strategyOutput.mvpFeatures.filter(f => f.priority === 'SHOULD').map(f => f.name).join(', ')}
+
+Data model from Business Analyst:
+${data.analystOutput.dataEntities.map((e) => `- ${e.name}: ${e.fields.map((f) => `${f.name} (${f.type})`).join(', ')} | Relations: ${e.relations.join(', ')}`).join('\n')}
+
+Required integrations: ${data.analystOutput.integrations.join(', ')}
+
+Base Prisma schema already in the boilerplate — DO NOT repeat the User model, only add new models:
 ${BASE_SCHEMA}
 
-${data.rejectionFeedback ? `Previous output was rejected: "${data.rejectionFeedback}"\nRevise accordingly.` : ''}
+${data.rejectionFeedback ? `⚠️ Previous output was rejected — feedback: "${data.rejectionFeedback}"\nRevise accordingly.` : ''}
 
 Return JSON with EXACTLY this structure:
 {
   "techStack": {
-    "frontend": ["Next.js 14", "TypeScript", "Tailwind CSS", "shadcn/ui"],
-    "backend": ["Next.js API Routes", "Prisma ORM", "Zod"],
-    "database": ["PostgreSQL", "Redis (caching)"],
-    "infrastructure": ["DigitalOcean App Platform", "DO Managed PostgreSQL"]
+    "frontend": ["Next.js 14 (App Router)", "TypeScript", "Tailwind CSS", "shadcn/ui", "Zustand (state)"],
+    "backend": ["Next.js API Routes", "Prisma ORM", "Zod (validation)", "NextAuth.js"],
+    "database": ["PostgreSQL (primary)", "Redis (sessions/cache)"],
+    "infrastructure": ["DigitalOcean App Platform", "DO Managed PostgreSQL", "DO Spaces (file storage)"]
   },
-  "prismaSchemaDelta": "model Project {\\n  id String @id @default(cuid())\\n  ...\\n}\\n\\nenum Status { ... }",
-  "phase1Features": [{ "feature": "Feature name", "estimatedDays": 3 }],
-  "phase2Features": [{ "feature": "Feature name", "estimatedDays": 5 }],
-  "apiEndpoints": [{ "method": "POST", "path": "/api/projects", "description": "Create project" }],
-  "envVarsRequired": ["DATABASE_URL", "NEXTAUTH_SECRET"]
+  "prismaSchemaDelta": "model Project {\\n  id        String   @id @default(cuid())\\n  name      String\\n  userId    String\\n  user      User     @relation(fields: [userId], references: [id])\\n  createdAt DateTime @default(now())\\n  updatedAt DateTime @updatedAt\\n}",
+  "phase1Features": [
+    { "feature": "Plain English description of what gets built (e.g. 'User login and account management')", "estimatedDays": 3 }
+  ],
+  "phase2Features": [
+    { "feature": "Plain English description (e.g. 'Payment integration with Stripe and subscription plans')", "estimatedDays": 5 }
+  ],
+  "apiEndpoints": [
+    { "method": "POST", "path": "/api/resource", "description": "Plain English: what this does and who calls it" }
+  ],
+  "envVarsRequired": ["DATABASE_URL", "NEXTAUTH_SECRET", "NEXTAUTH_URL", "List all needed env vars"]
 }
 
-Important: prismaSchemaDelta must be VALID Prisma schema for new models only (not User).
-Include 3-5 phase1 features, 3-5 phase2 features, 5-10 API endpoints.`
+Rules for prismaSchemaDelta:
+- MUST be valid Prisma schema syntax
+- Include ALL new models needed (not User — it's already there)
+- Use cuid() for IDs, include createdAt/updatedAt on every model
+- Include proper @relation directives for foreign keys
+- Add enums if needed for status fields
 
-    const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 3000 })
+Rules for features:
+- phase1Features: 4-6 items (MVP launch scope, should ship in ~2-4 weeks)
+- phase2Features: 4-6 items (post-launch iteration, 1-2 months)
+- apiEndpoints: 6-12 endpoints covering all core CRUD operations
+- estimatedDays: be realistic (auth=3, CRUD=2, payments=4, notifications=2)`
+
+    const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 3500, temperature: 0.4 })
     return gradientClient.parseJSON<TechLeadOutput>(raw)
 }

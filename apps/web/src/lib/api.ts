@@ -1,4 +1,4 @@
-import type { Project } from '@forgeos/shared'
+import type { Project, AgencySettings } from '@forgeos/shared'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -14,11 +14,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     return res.json()
 }
 
+const isDemoMode = () =>
+    new URLSearchParams(window.location.search).get('demo') === 'true'
+
 export const api = {
-    createProject: (body: { concept: string; agencyId: string; mode?: string }) =>
+    createProject: (body: { concept: string; agencyId: string; mode?: string; demoMode?: boolean }) =>
         request<{ projectId: string }>('/api/projects', {
             method: 'POST',
-            body: JSON.stringify(body),
+            body: JSON.stringify({ ...body, demoMode: body.demoMode ?? isDemoMode() }),
         }),
 
     getProject: (id: string) => request<Project>(`/api/projects/${id}`),
@@ -35,15 +38,44 @@ export const api = {
     ) =>
         request(`/api/projects/${projectId}/nodes/${nodeId}/approve`, {
             method: 'POST',
-            body: JSON.stringify({ editedPayload }),
+            body: JSON.stringify({ editedPayload, demoMode: isDemoMode() }),
         }),
 
     rejectNode: (projectId: string, nodeId: number, feedback: string) =>
         request(`/api/projects/${projectId}/nodes/${nodeId}/reject`, {
             method: 'POST',
-            body: JSON.stringify({ feedback }),
+            body: JSON.stringify({ feedback, demoMode: isDemoMode() }),
+        }),
+
+    retryNode: (projectId: string, nodeId: number) =>
+        request(`/api/projects/${projectId}/nodes/${nodeId}/retry`, {
+            method: 'POST',
+            body: JSON.stringify({}),
+        }),
+
+    startPipeline: (projectId: string) =>
+        request(`/api/projects/${projectId}/start`, { method: 'POST' }),
+
+    resumePipeline: (projectId: string) =>
+        request(`/api/projects/${projectId}/resume`, {
+            method: 'POST',
+            body: JSON.stringify({ demoMode: isDemoMode() }),
+        }),
+
+    deleteProject: (projectId: string) =>
+        request(`/api/projects/${projectId}`, {
+            method: 'DELETE',
         }),
 
     downloadLocalStack: (projectId: string) =>
         `${BASE}/api/projects/${projectId}/download`,
+
+    getAgencySettings: (agencyId: string) =>
+        request<AgencySettings>(`/api/agencies/${agencyId}/settings`),
+
+    updateAgencySettings: (agencyId: string, settings: Partial<AgencySettings>) =>
+        request<{ success: boolean }>(`/api/agencies/${agencyId}/settings`, {
+            method: 'PUT',
+            body: JSON.stringify(settings),
+        }),
 }

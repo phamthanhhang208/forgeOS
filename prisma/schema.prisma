@@ -1,19 +1,17 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  extensions = [pgvector(map: "vector")]
+  provider = "postgresql"
 }
 
 model Agency {
-  id        String         @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  createdAt DateTime       @default(now())
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
   projects  Project[]
-  memories  AgencyMemory[]
 }
 
 model Project {
@@ -71,8 +69,9 @@ model Deployment {
   id            String           @id @default(cuid())
   projectId     String           @unique
   project       Project          @relation(fields: [projectId], references: [id])
-  githubRepoUrl String?
-  doAppId       String?
+  githubRepoUrl  String?
+  githubFullName String?
+  doAppId        String?
   doAppUrl      String?
   buildStatus   DeploymentStatus @default(PENDING)
   stepADone     Boolean          @default(false)
@@ -91,14 +90,4 @@ enum DeploymentStatus {
   DEPLOYING
   ACTIVE
   FAILED
-}
-
-model AgencyMemory {
-  id             String                      @id @default(cuid())
-  agencyId       String
-  agency         Agency                      @relation(fields: [agencyId], references: [id])
-  projectSummary String
-  tags           String[]
-  embedding      Unsupported("vector(768)")?
-  createdAt      DateTime                    @default(now())
 }

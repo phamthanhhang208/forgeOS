@@ -17,10 +17,15 @@ import path from 'path'
 
 const router = Router()
 
+const redisHost = process.env.REDIS_URL ? new URL(process.env.REDIS_URL).hostname : 'localhost'
+const redisPort = process.env.REDIS_URL ? parseInt(new URL(process.env.REDIS_URL).port || '6379') : 6379
+
+console.log(`[Queue] Connecting BullMQ to ${redisHost}:${redisPort}`)
+
 const pipelineQueue = new Queue('agentPipeline', {
     connection: {
-        host: redis.options.host ?? 'localhost',
-        port: redis.options.port ?? 6379,
+        host: redisHost,
+        port: redisPort,
     },
 })
 
@@ -29,11 +34,19 @@ router.post(
     '/',
     validate(CreateProjectSchema),
     asyncHandler(async (req, res) => {
-        const { concept, agencyId, mode } = req.body as {
+        const { concept, agencyId, mode, demoMode } = req.body as {
             concept: string
             agencyId: string
             mode: string
+            demoMode?: boolean
         }
+
+        // Ensure the agency exists (auto-create for demo)
+        await prisma.agency.upsert({
+            where: { id: agencyId },
+            update: {},
+            create: { id: agencyId, name: 'Demo Agency' },
+        })
 
         const project = await prisma.project.create({
             data: {
@@ -63,13 +76,16 @@ router.post(
         })
 
         // Queue first job
-        await pipelineQueue.add('process-node', {
+        console.log(`[POST /projects] Queuing job for project ${project.id} node 1...`)
+        const job = await pipelineQueue.add('process-node', {
             projectId: project.id,
             nodeId: 1,
             agencyId,
             concept,
             previousOutputs: {},
+            demoMode: demoMode ?? false,
         })
+        console.log(`[POST /projects] ✅ Job queued with id: ${job.id}`)
 
         res.status(201).json({ projectId: project.id, message: 'Pipeline started' })
     })
@@ -129,7 +145,7 @@ router.post(
     asyncHandler(async (req, res) => {
         const { id } = req.params
         const nodeId = parseInt(req.params.nodeId, 10)
-        const { editedPayload } = req.body as { editedPayload?: Record<string, unknown> }
+        const { editedPayload, demoMode } = req.body as { editedPayload?: Record<string, unknown>; demoMode?: boolean }
 
         // Find latest AgentOutput for this project/node
         const output = await prisma.agentOutput.findFirst({
@@ -187,13 +203,44 @@ router.post(
                 agencyId: project.agencyId,
                 concept: project.concept,
                 previousOutputs,
+                demoMode: demoMode ?? false,
             })
 
-            // If next node has a LOCKED stub, set it to QUEUED
-            await prisma.agentOutput.updateMany({
-                where: { projectId: id, nodeId: nextNodeId, status: 'LOCKED' },
-                data: { status: 'QUEUED' },
+            // Find the latest output for the next node
+            const nextNodeOutput = await prisma.agentOutput.findFirst({
+                where: { projectId: id, nodeId: nextNodeId },
+                orderBy: { version: 'desc' },
             })
+
+            if (!nextNodeOutput) {
+                // Should not happen if initial stubs were created, but fallback
+                await prisma.agentOutput.create({
+                    data: {
+                        projectId: id,
+                        nodeId: nextNodeId,
+                        version: 1,
+                        jsonPayload: {},
+                        status: 'QUEUED',
+                    },
+                })
+            } else if (nextNodeOutput.status === 'LOCKED') {
+                // If it's just a stub, activate it
+                await prisma.agentOutput.update({
+                    where: { id: nextNodeOutput.id },
+                    data: { status: 'QUEUED' },
+                })
+            } else {
+                // If it already ran in a previous pipeline execution, create a new version
+                await prisma.agentOutput.create({
+                    data: {
+                        projectId: id,
+                        nodeId: nextNodeId,
+                        version: nextNodeOutput.version + 1,
+                        jsonPayload: {},
+                        status: 'QUEUED',
+                    },
+                })
+            }
 
             await publishEvent(id, { type: 'NODE_STATUS', nodeId: nextNodeId, status: NodeStatus.QUEUED })
         }
@@ -209,7 +256,7 @@ router.post(
     asyncHandler(async (req, res) => {
         const { id } = req.params
         const nodeId = parseInt(req.params.nodeId, 10)
-        const { feedback } = req.body as { feedback: string }
+        const { feedback, demoMode } = req.body as { feedback: string; demoMode?: boolean }
 
         // Find latest output
         const output = await prisma.agentOutput.findFirst({
@@ -269,6 +316,7 @@ router.post(
                 concept: project.concept,
                 previousOutputs,
                 rejectionFeedback: feedback,
+                demoMode: demoMode ?? false,
             })
         }
 
@@ -276,7 +324,73 @@ router.post(
     })
 )
 
-// GET /api/projects/:id/download — Stream ZIP
+// POST /api/projects/:id/nodes/:nodeId/retry — retry a FAILED node
+router.post(
+    '/:id/nodes/:nodeId/retry',
+    asyncHandler(async (req, res) => {
+        const { id } = req.params
+        const nodeId = parseInt(req.params.nodeId, 10)
+
+        const output = await prisma.agentOutput.findFirst({
+            where: { projectId: id, nodeId },
+            orderBy: { version: 'desc' },
+        })
+
+        if (!output) {
+            res.status(404).json({ error: 'Agent output not found' })
+            return
+        }
+
+        if (output.status !== 'FAILED') {
+            res.status(400).json({ error: 'Node is not in FAILED state' })
+            return
+        }
+
+        // Create new version
+        const newVersion = output.version + 1
+        await prisma.agentOutput.create({
+            data: {
+                projectId: id,
+                nodeId,
+                version: newVersion,
+                jsonPayload: {},
+                status: 'QUEUED',
+            },
+        })
+
+        await prisma.project.update({
+            where: { id },
+            data: { status: 'RUNNING' },
+        })
+
+        await publishEvent(id, { type: 'NODE_STATUS', nodeId, status: NodeStatus.QUEUED })
+        await publishEvent(id, { type: 'LOG', nodeId, level: 'info', message: 'Retrying node...', timestamp: new Date().toISOString() })
+
+        // Gather previous approved outputs
+        const project = await prisma.project.findUnique({ where: { id } })
+        if (project) {
+            const approvedOutputs = await prisma.agentOutput.findMany({
+                where: { projectId: id, status: 'APPROVED' },
+                orderBy: { nodeId: 'asc' },
+            })
+            const previousOutputs: Record<number, unknown> = {}
+            for (const o of approvedOutputs) {
+                previousOutputs[o.nodeId] = o.jsonPayload
+            }
+
+            await pipelineQueue.add('process-node', {
+                projectId: id,
+                nodeId,
+                agencyId: project.agencyId,
+                concept: project.concept,
+                previousOutputs,
+                demoMode: false,
+            })
+        }
+
+        res.json({ success: true, newVersion })
+    })
+)
 router.get(
     '/:id/download',
     asyncHandler(async (req, res) => {
@@ -293,6 +407,250 @@ router.get(
         res.setHeader('Content-Type', 'application/zip')
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
         createReadStream(deployment.zipPath).pipe(res)
+    })
+)
+
+// GET /api/projects/:id/download — Stream ZIP
+// POST /api/projects/:id/start — Manually start/restart the pipeline from Node 1
+router.post(
+    '/:id/start',
+    asyncHandler(async (req, res) => {
+        const { id } = req.params
+
+        const project = await prisma.project.findUnique({ where: { id } })
+        if (!project) {
+            res.status(404).json({ error: 'Project not found' })
+            return
+        }
+
+        // Reset Node 1 to QUEUED if it's stuck
+        const existingOutput = await prisma.agentOutput.findFirst({
+            where: { projectId: id, nodeId: 1 },
+            orderBy: { version: 'desc' },
+        })
+
+        if (existingOutput && existingOutput.status === 'QUEUED') {
+            // Already queued, just re-add job
+        } else if (existingOutput) {
+            // Create a new version
+            await prisma.agentOutput.create({
+                data: {
+                    projectId: id,
+                    nodeId: 1,
+                    version: (existingOutput.version || 0) + 1,
+                    jsonPayload: {},
+                    status: 'QUEUED',
+                },
+            })
+        } else {
+            // No output exists — create initial stubs
+            await prisma.agentOutput.createMany({
+                data: [1, 2, 3].map((nodeId) => ({
+                    projectId: id,
+                    nodeId,
+                    version: 1,
+                    jsonPayload: {},
+                    status: nodeId === 1 ? 'QUEUED' as const : 'LOCKED' as const,
+                })),
+            })
+        }
+
+        await prisma.project.update({
+            where: { id },
+            data: { status: 'RUNNING', currentNode: 1 },
+        })
+
+        await publishEvent(id, { type: 'NODE_STATUS', nodeId: 1, status: NodeStatus.QUEUED })
+        await publishEvent(id, { type: 'LOG', nodeId: 1, level: 'info', message: 'Pipeline started manually', timestamp: new Date().toISOString() })
+
+        await pipelineQueue.add('process-node', {
+            projectId: id,
+            nodeId: 1,
+            agencyId: project.agencyId,
+            concept: project.concept,
+            previousOutputs: {},
+            demoMode: false,
+        })
+
+        res.json({ success: true, message: 'Pipeline started' })
+    })
+)
+
+// POST /api/projects/:id/resume — Resume pipeline from where it stopped
+router.post(
+    '/:id/resume',
+    asyncHandler(async (req, res) => {
+        const { id } = req.params
+
+        const project = await prisma.project.findUnique({ where: { id } })
+        if (!project) {
+            res.status(404).json({ error: 'Project not found' })
+            return
+        }
+
+        // Find the most recent APPROVED node
+        const lastApproved = await prisma.agentOutput.findFirst({
+            where: { projectId: id, status: 'APPROVED' },
+            orderBy: { nodeId: 'desc' },
+        })
+
+        const nextNodeId = lastApproved ? lastApproved.nodeId + 1 : 1
+
+        if (nextNodeId > 4) {
+            res.json({ success: true, message: 'Pipeline already completed' })
+            return
+        }
+
+        const nextNodeOutput = await prisma.agentOutput.findFirst({
+            where: { projectId: id, nodeId: nextNodeId },
+            orderBy: { version: 'desc' },
+        })
+
+        if (!nextNodeOutput) {
+            await prisma.agentOutput.create({
+                data: {
+                    projectId: id,
+                    nodeId: nextNodeId,
+                    version: 1,
+                    jsonPayload: {},
+                    status: 'QUEUED',
+                },
+            })
+        } else if (nextNodeOutput.status === 'LOCKED' || nextNodeOutput.status === 'FAILED') {
+            await prisma.agentOutput.update({
+                where: { id: nextNodeOutput.id },
+                data: { status: 'QUEUED' },
+            })
+        } else {
+            await prisma.agentOutput.create({
+                data: {
+                    projectId: id,
+                    nodeId: nextNodeId,
+                    version: nextNodeOutput.version + 1,
+                    jsonPayload: {},
+                    status: 'QUEUED',
+                },
+            })
+        }
+
+        await prisma.project.update({
+            where: { id },
+            data: { status: 'RUNNING', currentNode: nextNodeId },
+        })
+
+        await publishEvent(id, { type: 'NODE_STATUS', nodeId: nextNodeId, status: NodeStatus.QUEUED })
+        await publishEvent(id, { type: 'LOG', nodeId: nextNodeId, level: 'info', message: 'Pipeline resumed', timestamp: new Date().toISOString() })
+
+        const approvedOutputs = await prisma.agentOutput.findMany({
+            where: { projectId: id, status: 'APPROVED' },
+            orderBy: { nodeId: 'asc' },
+        })
+        const previousOutputs: Record<number, unknown> = {}
+        for (const o of approvedOutputs) {
+            previousOutputs[o.nodeId] = o.jsonPayload
+        }
+
+        const demoMode = (req.body as { demoMode?: boolean }).demoMode ?? false
+
+        await pipelineQueue.add('process-node', {
+            projectId: id,
+            nodeId: nextNodeId,
+            agencyId: project.agencyId,
+            concept: project.concept,
+            previousOutputs,
+            demoMode,
+        })
+
+        res.json({ success: true, message: `Pipeline resumed at node ${nextNodeId}` })
+    })
+)
+
+// DELETE /api/projects/:id — Delete a project and all related data
+router.delete(
+    '/:id',
+    asyncHandler(async (req, res) => {
+        const { id } = req.params
+
+        const project = await prisma.project.findUnique({ where: { id } })
+        if (!project) {
+            res.status(404).json({ error: 'Project not found' })
+            return
+        }
+
+        // Delete related data first (foreign key constraints)
+        await prisma.agentOutput.deleteMany({ where: { projectId: id } })
+        await prisma.deployment.deleteMany({ where: { projectId: id } })
+        await prisma.project.delete({ where: { id } })
+
+        res.json({ success: true, message: 'Project deleted' })
+    })
+)
+
+// POST /api/projects/:id/iterate
+// Body: { prompt: string }
+router.post(
+    '/:id/iterate',
+    asyncHandler(async (req, res) => {
+        const { id } = req.params
+        const { prompt } = req.body as { prompt: string }
+
+        if (!prompt?.trim()) {
+            res.status(400).json({ error: 'prompt is required' })
+            return
+        }
+
+        const parent = await prisma.project.findUnique({
+            where: { id },
+            include: { deployment: true, agentOutputs: { where: { status: 'APPROVED' } } },
+        })
+
+        if (!parent) {
+            res.status(404).json({ error: 'Project not found' })
+            return
+        }
+
+        if (parent.status !== 'COMPLETED') {
+            res.status(400).json({ error: 'Project must be COMPLETED to iterate' })
+            return
+        }
+
+        const iterProject = await prisma.project.create({
+            data: {
+                concept: `${parent.concept} — ${prompt}`,
+                agencyId: parent.agencyId,
+                mode: 'ITERATE',
+                status: 'RUNNING',
+                currentNode: 1,
+            },
+        })
+
+        await prisma.agentOutput.createMany({
+            data: [1, 2, 3].map((nodeId) => ({
+                projectId: iterProject.id,
+                nodeId,
+                version: 1,
+                jsonPayload: {},
+                status: nodeId === 1 ? 'QUEUED' as const : 'LOCKED' as const,
+            })),
+        })
+
+        const previousOutputs: Record<number, unknown> = {}
+        for (const o of parent.agentOutputs) {
+            previousOutputs[o.nodeId] = o.jsonPayload
+        }
+
+        await pipelineQueue.add('process-node', {
+            projectId: iterProject.id,
+            nodeId: 1,
+            agencyId: parent.agencyId,
+            concept: iterProject.concept,
+            previousOutputs,
+            mode: 'ITERATE',
+            existingGithubRepo: parent.deployment?.githubRepoUrl?.replace('https://github.com/', '') ?? '',
+            iterationPrompt: prompt,
+        })
+
+        res.status(201).json({ projectId: iterProject.id })
     })
 )
 

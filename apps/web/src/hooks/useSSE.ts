@@ -1,11 +1,15 @@
 import { useEffect, useRef } from 'react'
 import type { SSEEvent } from '@forgeos/shared'
+import { usePipelineStore } from '../store/pipeline.store'
+
+const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 export function useSSE(projectId: string | null, onEvent: (event: SSEEvent) => void) {
     const esRef = useRef<EventSource | null>(null)
     const retryCountRef = useRef(0)
     const lastEventIdRef = useRef<string>('')
     const onEventRef = useRef(onEvent)
+    const setSseConnected = usePipelineStore((s) => s.setSseConnected)
 
     useEffect(() => {
         onEventRef.current = onEvent
@@ -15,7 +19,7 @@ export function useSSE(projectId: string | null, onEvent: (event: SSEEvent) => v
         if (!projectId) return
 
         function connect() {
-            const url = `http://localhost:3001/api/projects/${projectId}/stream`
+            const url = `${BASE}/api/projects/${projectId}/stream`
             const fullUrl = lastEventIdRef.current
                 ? `${url}?lastEventId=${lastEventIdRef.current}`
                 : url
@@ -23,18 +27,29 @@ export function useSSE(projectId: string | null, onEvent: (event: SSEEvent) => v
             const es = new EventSource(fullUrl)
             esRef.current = es
 
+            es.onopen = () => {
+                retryCountRef.current = 0
+                setSseConnected(true)
+            }
+
             es.onmessage = (e) => {
                 if (e.lastEventId) lastEventIdRef.current = e.lastEventId
-                retryCountRef.current = 0 // reset backoff on success
+                retryCountRef.current = 0
+                setSseConnected(true)
                 try {
                     const event: SSEEvent = JSON.parse(e.data)
+                    if (event.type === 'NODE_PAYLOAD') {
+                        console.log(`[SSE] NODE_PAYLOAD received for node ${event.nodeId} v${event.version}, keys:`, Object.keys(event.payload))
+                    }
                     onEventRef.current(event)
-                } catch { }
+                } catch (err) {
+                    console.error('[SSE] Failed to parse event:', e.data, err)
+                }
             }
 
             es.onerror = () => {
                 es.close()
-                // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+                setSseConnected(false)
                 const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000)
                 retryCountRef.current++
                 setTimeout(connect, delay)
@@ -42,6 +57,9 @@ export function useSSE(projectId: string | null, onEvent: (event: SSEEvent) => v
         }
 
         connect()
-        return () => { esRef.current?.close() }
-    }, [projectId])
+        return () => {
+            esRef.current?.close()
+            setSseConnected(false)
+        }
+    }, [projectId, setSseConnected])
 }

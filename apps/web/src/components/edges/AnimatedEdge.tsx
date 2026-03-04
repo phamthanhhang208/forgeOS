@@ -20,28 +20,44 @@ export function AnimatedEdge({
         targetPosition,
     })
 
-    // We pass isAnimating via data prop
     const isAnimating = data?.isAnimating
 
     return (
         <>
-            {/* Background shadow path */}
+            {/* Background static path */}
             <BaseEdge
                 path={edgePath}
                 markerEnd={markerEnd}
                 style={{ ...style, strokeWidth: 2, stroke: 'var(--border)' }}
             />
 
-            {/* Foreground animated dots */}
+            {/* Foreground animated flowing dots */}
             {isAnimating && (
-                <path
-                    d={edgePath}
-                    fill="none"
-                    stroke="var(--accent-primary)"
-                    strokeWidth={2}
-                    strokeDasharray="4 8"
-                    className="animate-flow-dots drop-shadow-[0_0_4px_var(--accent-primary)]"
-                />
+                <>
+                    {/* Glow layer */}
+                    <path
+                        d={edgePath}
+                        fill="none"
+                        stroke="var(--accent-primary)"
+                        strokeWidth={3}
+                        strokeDasharray="4 8"
+                        strokeLinecap="round"
+                        opacity={0.3}
+                        className="animate-flow-dots"
+                        style={{ filter: 'blur(3px)' }}
+                    />
+                    {/* Sharp dots */}
+                    <path
+                        d={edgePath}
+                        fill="none"
+                        stroke="var(--accent-primary)"
+                        strokeWidth={2}
+                        strokeDasharray="4 8"
+                        strokeLinecap="round"
+                        className="animate-flow-dots"
+                        style={{ filter: 'drop-shadow(0 0 4px var(--accent-primary))' }}
+                    />
+                </>
             )}
         </>
     )

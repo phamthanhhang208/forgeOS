@@ -2,74 +2,136 @@
 
 <div align="center">
 
-# ⚡ ForgeOS Node Studio
+# ForgeOS Node Studio
 
-### AI-Agent Software Factory
+### AI-Agent Software Factory for DigitalOcean
 
-**A production-ready Next/Vite Monorepo demonstrating human-in-the-loop AI software generation pipelines using React Flow and Digital Ocean's Gradient LLaMA.**
+**Input a raw SaaS concept. Watch AI agents analyze, architect, and deploy it — all in a real-time visual pipeline.**
 
-[Installation](#installation) • [Architecture](#architecture) • [Usage](#usage)
+[Live Demo](#demo) · [How It Works](#how-it-works) · [Quick Start](#quick-start) · [Architecture](#architecture)
 
 </div>
 
 ---
 
-## 📖 Overview
+## What It Does
 
-ForgeOS is an end-to-end multi-agent pipeline workflow builder to scaffold and deploy web platforms based purely on a high-level creative prompt concept. It combines **pgvector** context logic (RAG) with LLaMA reasoning models running concurrently on the BullMQ queue scheduler.
+ForgeOS Node Studio is a **multi-agent SaaS incubation platform** that transforms a raw business idea into a deployed web application on DigitalOcean App Platform. You describe a SaaS concept in plain English, and a pipeline of specialized AI agents — Strategist, Business Analyst, Tech Lead, and Shipyard — collaboratively analyzes, architects, and ships a working codebase.
 
-## 🌟 Key Features
+Every agent output is visible in a **React Flow canvas** where you can review, edit, or reject JSON outputs before the pipeline advances. This human-in-the-loop design ensures the AI never goes off the rails — you stay in control at every step.
 
-1. **Stateful Canvas**: Node-based React Flow studio to visualize agent activities.
-2. **Human-in-the-loop (HITL)**: Intercept JSON outputs and direct agents before next pipeline phases execute.
-3. **Queue Architecture**: Resilient Redis message queues ensure long-running deployments don't timeout.
-4. **DigitalOcean Gradient Integration**: First-class support for low-latency agent generation via open-source LLMs.
+## Demo
 
-## 🛠 Tech Stack
+Open the app with `?demo=true` to run with pre-cached AI responses (zero external API calls):
 
-- **Monorepo**: PNPM, Turborepo
-- **API**: Express, BullMQ, SSE Streams
-- **Database**: PostgreSQL (pgvector via Prisma)
-- **Frontend**: React, React Flow, Zustand, TailwindCSS
+```
+http://localhost:5173?demo=true
+```
 
-<br/>
+The demo banner confirms you're in demo mode. All 4 agent nodes use fixture data with realistic delays so you can experience the full pipeline flow in ~30 seconds.
 
-## 🚀 Installation & Setup
+## How It Works
 
-Ensure you have:
-- Node.js 18+ (tested on Node v20)
-- `pnpm` available gobally
-- Redis server
-- PostgreSQL database (with `pgvector` extension)
+```
+Concept Input → Strategist → Business Analyst → Tech Lead → Shipyard
+     (you)      (market)      (requirements)    (arch)     (deploy)
+```
 
-1. **Clone & Install**
-   ```bash
-   pnpm install
-   ```
+| Node | Agent | What It Produces |
+|------|-------|-----------------|
+| 0 | **Concept Input** | Your raw SaaS idea |
+| 1 | **The Strategist** | Target audience, MVP features, monetization, risks |
+| 2 | **The Business Analyst** | User personas, stories, data entities, integrations |
+| 3 | **The Tech Lead** | Tech stack, Prisma schema, API endpoints, feature roadmap |
+| 4 | **The Shipyard** | Clones boilerplate → injects schema → pushes to GitHub → deploys to DO App Platform |
 
-2. **Configure environment**
-   Duplicate root `.env.example` -> `.env`. Repeat for `.env` in `apps/api`.
-   Fill out `DATABASE_URL`, `REDIS_URL`, and `GRADIENT_ACCESS_TOKEN`.
+Each node transitions through: `LOCKED → QUEUED → PROCESSING → REVIEW → APPROVED`
 
-3. **Database initialization**
-   ```bash
-   cd packages/shared
-   npx prisma generate
-   npx prisma db push
-   ```
+At **REVIEW**, you can:
+- View and edit the agent's JSON output in a Monaco editor
+- Approve to advance the pipeline
+- Reject with feedback to regenerate (up to 5 attempts per node)
 
-4. **Seed Agency memory (RAG Context)**
-   ```bash
-   npx tsx scripts/seed-agency-memory.ts
-   ```
+## DigitalOcean Services Used
 
-5. **Start Servers**
-   ```bash
-   pnpm dev
-   ```
+| Service | Usage |
+|---------|-------|
+| **DO Gradient API** | LLaMA 3.1 8B Instruct for all AI agent reasoning |
+| **DO Managed PostgreSQL** | Project, agent output, and deployment state storage |
+| **DO Managed Redis** | BullMQ job queue + SSE pub/sub for real-time events |
+| **DO App Platform** | Auto-deploys generated projects from GitHub |
+| **DO Spaces** | S3-compatible storage for agency memory (Knowledge Base source) |
+| **DO Gradient Knowledge Base** | RAG retrieval for past project context |
 
-> View the client dashboard at `http://localhost:5173`.
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, Vite, TypeScript, @xyflow/react v12, Zustand, TanStack Query v5, Framer Motion, Tailwind CSS |
+| Backend | Express, TypeScript, Prisma ORM, BullMQ, IORedis |
+| Database | PostgreSQL (via Prisma) |
+| Queue | Redis + BullMQ (`agentPipeline` queue) |
+| AI | DO Gradient API (meta-llama/Meta-Llama-3.1-8B-Instruct) |
+| Real-time | Server-Sent Events (SSE) via Redis pub/sub |
+| Monorepo | pnpm workspaces + Turborepo |
+
+## Quick Start
+
+**Prerequisites**: Node.js 22+, pnpm, Docker
+
+```bash
+# 1. Clone and install
+git clone https://github.com/phamthanhhang208/forgeos-1.git
+cd forgeos-1
+pnpm install
+
+# 2. Start Postgres + Redis
+docker-compose up -d
+
+# 3. Configure environment
+cp .env.example .env
+# Fill in your DO API keys, GitHub PAT, etc.
+
+# 4. Run database migrations
+pnpm db:migrate
+
+# 5. Seed agency memory (uploads to DO Spaces for KB)
+pnpm seed
+
+# 6. Start all services
+pnpm dev
+```
+
+Open http://localhost:5173 (or http://localhost:5173?demo=true for demo mode).
+
+## Architecture
+
+```
+apps/
+  api/           Express API server (port 3001)
+    src/
+      routes/      REST endpoints + SSE stream
+      workers/     BullMQ pipeline worker
+        agents/    Strategist, Analyst, TechLead, Shipyard
+      lib/         Gradient client, GitHub client, DO client, RAG
+  web/           Vite + React frontend (port 5173)
+    src/
+      components/  Canvas, Nodes, Edges, Panels
+      store/       Zustand pipeline state
+      hooks/       SSE connection hook
+packages/
+  shared/        TypeScript types, enums, Zod schemas, SSE event types
+prisma/          Database schema + migrations
+```
+
+## Key Design Decisions
+
+- **SSE over WebSocket**: Simpler, stateless, works through proxies. One EventSource per project.
+- **BullMQ over in-process**: Long-running agent calls (10-30s) don't block the Express event loop. Jobs survive server restarts.
+- **JSON-only agents**: Every AI agent outputs structured JSON. The HITL panel lets you edit before approval — no black boxes.
+- **Idempotent Shipyard steps**: Each deployment step (A-D) is tracked with boolean flags. If the process crashes mid-deploy, it resumes from the last completed step.
+- **Demo mode**: `?demo=true` bypasses all external APIs with pre-cached responses, making the demo 100% reliable for judges.
 
 ---
 
-© 2026 Pham Thanh Hang - Hackathon Submission.
+Built for the DigitalOcean App Platform Hackathon 2025.

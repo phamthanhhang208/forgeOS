@@ -12,16 +12,25 @@
     "db:studio": "prisma studio"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "msgpackr-extract", "prisma"]
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma"
+    ]
   },
   "dependencies": {
-    "@prisma/client": "^7.0.0"
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.0.0",
+    "@types/pg": "^8.18.0",
+    "pg": "^8.19.0"
   },
   "devDependencies": {
     "dotenv": "^16.4.0",
-    "turbo": "latest",
-    "typescript": "^5.4.0",
+    "prisma": "^7.0.0",
     "tsx": "^4.7.0",
-    "prisma": "^7.0.0"
+    "turbo": "latest",
+    "typescript": "^5.4.0"
   }
 }

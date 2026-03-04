@@ -10,8 +10,15 @@ export interface StrategistOutput {
         rationale: string
     }>
     monetizationStrategy: string
+    pricingTiers: Array<{
+        name: string
+        price: string
+        description: string
+    }>
     marketDifferentiators: string[]
+    competitorLandscape: string
     riskFactors: string[]
+    successMetrics: string[]
 }
 
 export async function runStrategist(data: {
@@ -21,35 +28,53 @@ export async function runStrategist(data: {
 }): Promise<StrategistOutput> {
     const ragContext = await getRAGContext(data.agencyId, data.concept)
 
-    const systemPrompt = `You are the Strategist agent for a software agency incubation platform.
-Your role is to analyze a raw SaaS concept and produce a focused strategic analysis.
-You have access to context from this agency's past successful projects.
+    const systemPrompt = `You are a world-class SaaS product strategist with 15 years of experience launching B2B and B2C software products. You have helped founders define product-market fit for companies like Notion, Linear, and Loom.
 
-CRITICAL: Respond ONLY with valid JSON matching the exact schema provided. No markdown, no explanation, no preamble. Just the JSON object.`
+Your job is to analyze a raw SaaS concept and produce a focused, actionable strategic brief. Write in plain business language — specific and concrete, never generic.
 
-    const userPrompt = `Analyze this SaaS concept and return strategic analysis JSON.
+CRITICAL: Respond ONLY with valid JSON matching the exact schema. No markdown, no explanation. Pure JSON only.`
+
+    const userPrompt = `Analyze this SaaS concept and return a strategic analysis as JSON.
 
 Concept: "${data.concept}"
 
-Agency's past similar projects for context:
-${ragContext}
+${ragContext ? `Context from similar past projects:\n${ragContext}\n` : ''}
+${data.rejectionFeedback ? `⚠️ Previous output was rejected — feedback: "${data.rejectionFeedback}"\nDirectly address this in your new response.` : ''}
 
-${data.rejectionFeedback ? `IMPORTANT - Previous output was rejected with this feedback: "${data.rejectionFeedback}"\nAddress this feedback directly in your new response.` : ''}
+Think carefully about:
+- Who will actually pay for this today (not hypothetically)
+- The one core problem being solved — be ruthlessly specific
+- What makes someone switch from their current solution
+- Realistic SaaS pricing tiers that match the value delivered
+- Honest, specific risks (not generic market risks)
 
-Return JSON with EXACTLY this structure:
+Return JSON with EXACTLY this structure (no extra fields):
 {
-  "targetAudience": "string describing primary target customer",
-  "audienceSegments": ["segment 1", "segment 2", "segment 3"],
+  "targetAudience": "One sentence naming the primary paying customer with specifics (e.g. 'Independent freelance designers managing 3-10 clients simultaneously')",
+  "audienceSegments": ["Specific segment with detail (e.g. 'Solo freelancers earning $50-150K/year')", "Segment 2", "Segment 3"],
   "mvpFeatures": [
-    { "name": "Feature name", "priority": "MUST", "rationale": "Why this is critical for MVP" }
+    { "name": "Feature name in plain English", "priority": "MUST", "rationale": "Why this is the absolute minimum for launch" },
+    { "name": "Feature name", "priority": "SHOULD", "rationale": "Why add in first 3 months post-launch" },
+    { "name": "Feature name", "priority": "COULD", "rationale": "Nice to have, adds polish" }
   ],
-  "monetizationStrategy": "string describing pricing/revenue model",
-  "marketDifferentiators": ["differentiator 1", "differentiator 2"],
-  "riskFactors": ["risk 1", "risk 2", "risk 3"]
+  "monetizationStrategy": "2-3 sentences: the pricing model, why it fits this audience, and the key conversion lever",
+  "pricingTiers": [
+    { "name": "Starter", "price": "$29/month", "description": "Who it's for and what's included" },
+    { "name": "Pro", "price": "$79/month", "description": "Who it's for and what's included" }
+  ],
+  "marketDifferentiators": ["Specific advantage vs a named competitor (e.g. 'Unlike Trello, built specifically for...')", "Advantage 2", "Advantage 3"],
+  "competitorLandscape": "2-3 sentences naming real competing tools and the gap this product fills that they miss",
+  "riskFactors": ["Specific risk with a suggested mitigation (e.g. 'Low switching costs — mitigate by...')", "Risk 2", "Risk 3"],
+  "successMetrics": ["Concrete measurable goal (e.g. '100 paying customers within 6 months')", "Metric 2", "Metric 3"]
 }
 
-Include 4-6 MVP features, 2-4 differentiators, 3-5 risks.`
+Rules:
+- mvpFeatures: 4-6 items (mix of MUST/SHOULD/COULD)
+- pricingTiers: 2-3 tiers with realistic SaaS price points
+- marketDifferentiators: 3-4 specific advantages, not vague claims
+- riskFactors: 3-5 honest risks
+- successMetrics: 3-4 concrete, measurable goals with timeframes`
 
-    const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 2000 })
+    const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 2500, temperature: 0.5 })
     return gradientClient.parseJSON<StrategistOutput>(raw)
 }

@@ -6,4 +6,5 @@ export type SSEEvent =
   | { type: 'SHIPYARD_STEP'; step: 'A' | 'B' | 'C' | 'D'; status: 'START' | 'DONE' | 'FAILED' }
   | { type: 'DEPLOYMENT_COMPLETE'; githubUrl: string; doAppUrl: string; zipReady: boolean }
   | { type: 'ERROR'; nodeId: number; message: string }
+  | { type: 'LOG'; nodeId: number; level: 'info' | 'warn' | 'error'; message: string; timestamp: string }
   | { type: 'HEARTBEAT' }

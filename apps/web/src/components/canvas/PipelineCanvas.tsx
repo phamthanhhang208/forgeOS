@@ -27,42 +27,53 @@ const edgeTypes: EdgeTypes = {
 export function PipelineCanvas({ concept }: { concept: string }) {
     const nodes = usePipelineStore((s) => s.nodes)
 
-    // Layout positions
+    // Layout positions — ~260px gap keeps all 5 nodes visible in most viewports
+    // Explicit width/height ensures MiniMap can render node rectangles
     const rfNodes = [
         {
             id: 'node-0',
             type: 'inputNode',
-            position: { x: 50, y: 200 },
+            position: { x: 0, y: 150 },
             data: { concept },
             draggable: false,
+            width: 220,
+            height: 140,
         },
         {
             id: 'node-1',
             type: 'agentNode',
-            position: { x: 350, y: 200 },
+            position: { x: 260, y: 150 },
             data: nodes[1],
             draggable: false,
+            width: 220,
+            height: 140,
         },
         {
             id: 'node-2',
             type: 'agentNode',
-            position: { x: 650, y: 200 },
+            position: { x: 520, y: 150 },
             data: nodes[2],
             draggable: false,
+            width: 220,
+            height: 140,
         },
         {
             id: 'node-3',
             type: 'agentNode',
-            position: { x: 950, y: 200 },
+            position: { x: 780, y: 150 },
             data: nodes[3],
             draggable: false,
+            width: 220,
+            height: 140,
         },
         {
             id: 'node-4',
             type: 'shipyardNode',
-            position: { x: 1250, y: 200 },
+            position: { x: 1040, y: 150 },
             data: nodes[4],
             draggable: false,
+            width: 260,
+            height: 140,
         },
     ]
 
@@ -105,30 +116,34 @@ export function PipelineCanvas({ concept }: { concept: string }) {
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
+                nodesDraggable={false}
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
-                minZoom={0.2}
+                fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+                minZoom={0.3}
                 maxZoom={1.5}
                 className="canvas-bg"
             >
                 <Background gap={28} size={1} color="var(--border)" />
                 <Controls showInteractive={false} />
                 <MiniMap
-                    nodeStrokeWidth={3}
+                    nodeStrokeWidth={2}
                     zoomable
                     pannable
                     nodeColor={(n) => {
-                        if (n.type === 'inputNode') return '#2a2a3d'
+                        if (n.type === 'inputNode') return '#3a3a5d'
                         const status = (n.data as any).status
                         if (status === 'PROCESSING') return '#00d4ff'
                         if (status === 'APPROVED') return '#10b981'
                         if (status === 'REVIEW') return '#7c3aed'
                         if (status === 'FAILED') return '#ef4444'
-                        return '#1a1a28'
+                        return '#2a2a4d'
                     }}
-                    maskColor="rgba(10, 10, 15, 0.7)"
+                    nodeStrokeColor="#4a4a6d"
+                    maskColor="rgba(10, 10, 15, 0.6)"
+                    style={{ zIndex: 20 }}
                 />
             </ReactFlow>
+            <div className="vignette" />
         </div>
     )
 }

@@ -27,49 +27,60 @@ export async function runAnalyst(data: {
     strategyOutput: StrategistOutput
     rejectionFeedback?: string
 }): Promise<AnalystOutput> {
-    const systemPrompt = `You are the Business Analyst agent for a software agency incubation platform.
-You translate approved strategic analysis into concrete technical product requirements.
+    const systemPrompt = `You are a senior Business Analyst and product designer specializing in SaaS products. You've shipped products used by millions of people and know how to translate a business strategy into clear, actionable requirements.
+
+Your output will be reviewed by both technical developers AND non-technical founders, so describe user needs in plain human language. Avoid technical jargon in persona descriptions and user stories.
+
 CRITICAL: Respond ONLY with valid JSON. No markdown. No preamble. JSON only.`
 
-    const userPrompt = `Convert this approved strategy into technical product requirements.
+    const userPrompt = `Transform this approved strategy into detailed product requirements.
 
 Original Concept: "${data.concept}"
 
 Approved Strategy:
-${JSON.stringify(data.strategyOutput, null, 2)}
+- Target audience: ${data.strategyOutput.targetAudience}
+- Must-have features: ${data.strategyOutput.mvpFeatures.filter(f => f.priority === 'MUST').map(f => f.name).join(', ')}
+- Monetization: ${data.strategyOutput.monetizationStrategy}
+- Key differentiators: ${data.strategyOutput.marketDifferentiators.slice(0, 3).join('; ')}
 
-${data.rejectionFeedback ? `Previous output was rejected: "${data.rejectionFeedback}"\nAddress this in your response.` : ''}
+${data.rejectionFeedback ? `⚠️ Previous output was rejected — feedback: "${data.rejectionFeedback}"\nAddress this directly in your response.` : ''}
+
+Create vivid, realistic personas based on the target audience. Write user stories as a product manager would — focus on the WHY, not just the what.
 
 Return JSON with EXACTLY this structure:
 {
   "userPersonas": [
     {
-      "name": "Persona name",
-      "role": "Their job/role",
-      "painPoints": ["pain 1", "pain 2"],
-      "goals": ["goal 1", "goal 2"]
+      "name": "A real-sounding full name (e.g. 'Sarah Chen')",
+      "role": "Their specific job title and context (e.g. 'Freelance UX Designer, 8 years experience, 6 active clients')",
+      "painPoints": ["Specific frustration with current tools or workflows", "Another real pain point"],
+      "goals": ["What they want to achieve (outcome, not feature)", "Another goal"]
     }
   ],
   "coreUserStories": [
     {
-      "asA": "persona type",
-      "iWantTo": "action",
-      "soThat": "benefit",
-      "acceptanceCriteria": ["criteria 1", "criteria 2"]
+      "asA": "specific persona type (e.g. 'freelance designer')",
+      "iWantTo": "do a specific action (be concrete)",
+      "soThat": "achieve a meaningful outcome",
+      "acceptanceCriteria": ["Observable thing that must be true when done", "Another criterion"]
     }
   ],
   "dataEntities": [
     {
-      "name": "EntityName",
-      "fields": [{ "name": "fieldName", "type": "String | Int | Boolean | DateTime | Float" }],
-      "relations": ["EntityName has many OtherEntity"]
+      "name": "EntityName (PascalCase)",
+      "fields": [{ "name": "fieldName", "type": "String | Int | Boolean | DateTime | Float | Json" }],
+      "relations": ["EntityName has many OtherEntity", "EntityName belongs to AnotherEntity"]
     }
   ],
-  "integrations": ["Stripe", "SendGrid", "etc"]
+  "integrations": ["Stripe (payments)", "SendGrid (email)", "Add others relevant to this product"]
 }
 
-Include 2-3 personas, 5-8 user stories, 4-7 data entities.`
+Rules:
+- userPersonas: 2-3 distinct, realistic personas with specific details
+- coreUserStories: 6-10 stories covering the most important workflows
+- dataEntities: 4-7 entities covering core domain objects (include id, createdAt on each)
+- integrations: Only include integrations this product genuinely needs`
 
-    const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 2500 })
+    const raw = await gradientClient.chat({ systemPrompt, userPrompt, maxTokens: 3000, temperature: 0.5 })
     return gradientClient.parseJSON<AnalystOutput>(raw)
 }
