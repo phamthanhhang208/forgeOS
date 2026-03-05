@@ -4,7 +4,7 @@ import { Toaster } from "sonner";
 import { Dashboard } from "./pages/Dashboard";
 import { Studio } from "./pages/Studio";
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,

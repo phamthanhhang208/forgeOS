@@ -30,6 +30,7 @@ export function Studio() {
   const demoMode = usePipelineStore((s) => s.demoMode);
   const sseConnected = usePipelineStore((s) => s.sseConnected);
   const nodes = usePipelineStore((s) => s.nodes);
+  const deployment = usePipelineStore((s) => s.deployment);
   const startPipeline = usePipelineStore((s) => s.startPipeline);
   const approveNode = usePipelineStore((s) => s.approveNode);
   const retryNode = usePipelineStore((s) => s.retryNode);
@@ -46,6 +47,9 @@ export function Studio() {
   const hasActiveNodes = nodes.some(
     (n) => n.status === NodeStatus.QUEUED || n.status === NodeStatus.PROCESSING,
   );
+  const isProjectComplete =
+    shipyardNode?.status === NodeStatus.APPROVED ||
+    !!(deployment?.stepADone && deployment?.stepBDone && deployment?.stepCDone && deployment?.stepDDone);
 
   // Poll DB when nodes are actively running so missed SSE events self-correct
   const {
@@ -63,20 +67,27 @@ export function Studio() {
     shipyardNode?.status !== NodeStatus.LOCKED ||
     (project?.currentNode ?? 0) >= 4;
 
-  // Initialize project ID on mount
+  // Initialize project ID on mount — always wipe state before loading a new project
   useEffect(() => {
     if (projectId) {
+      console.log('[Studio] init projectId=', projectId);
+      initNodes();
+      hydratedOnce.current = false;
       setProjectId(projectId);
     }
     return () => {
+      console.log('[Studio] cleanup projectId=', projectId);
       setProjectId("");
-      initNodes(); // Only clear when unmounting/leaving the studio
+      initNodes();
       hydratedOnce.current = false;
     };
   }, [projectId, setProjectId, initNodes]);
 
-  // Hydrate node states from DB fetch
+  // Hydrate node states from DB fetch — only once per project load.
+  // After initial hydration, SSE handles all live updates.
   useEffect(() => {
+    console.log('[Studio] hydrate effect, hydratedOnce=', hydratedOnce.current, 'project?.id=', project?.id, 'projectId=', projectId);
+    if (hydratedOnce.current) return;
     if (project && project.id === projectId) {
       const outputs = project.agentOutputs;
 
@@ -89,6 +100,8 @@ export function Studio() {
             bestByNode.set(output.nodeId, output);
           }
         }
+
+        console.log('[Studio] bestByNode:', Array.from(bestByNode.entries()).map(([k, v]) => `node${k}=${v.status}(v${v.version})`).join(', '));
 
         bestByNode.forEach((output) => {
           handleSSEEvent({
@@ -110,10 +123,8 @@ export function Studio() {
         });
 
         // Enforce Linear Progression UI Rule:
-        // If the pipeline is currently at node X (project.currentNode),
-        // all nodes before X MUST visually appear as APPROVED to prevent UI glitching
-        // caused by abandoned 'QUEUED' versions from retries.
         const currentNode = project.currentNode || 0;
+        console.log('[Studio] currentNode=', currentNode, 'forcing nodes 0..', currentNode - 1, 'to APPROVED');
         for (let i = 0; i < currentNode; i++) {
           handleSSEEvent({
             type: "NODE_STATUS",
@@ -122,29 +133,29 @@ export function Studio() {
           });
         }
 
-        // Synthetic console logs from DB state — only on first load
-        if (!hydratedOnce.current) {
-          const now = new Date().toISOString();
-          const nodeNames: Record<number, string> = {
-            1: "Strategist",
-            2: "Business Analyst",
-            3: "Tech Lead",
-            4: "Shipyard",
-          };
-          bestByNode.forEach((output) => {
-            handleSSEEvent({
-              type: "LOG",
-              nodeId: output.nodeId,
-              level: output.status === "FAILED" ? "error" : "info",
-              message: `[Restored] ${nodeNames[output.nodeId] ?? `Node ${output.nodeId}`}: ${output.status} (v${output.version})`,
-              timestamp: now,
-            });
+        // Synthetic console logs from DB state
+        const now = new Date().toISOString();
+        const nodeNames: Record<number, string> = {
+          1: "Strategist",
+          2: "Business Analyst",
+          3: "Tech Lead",
+          4: "Shipyard",
+        };
+        bestByNode.forEach((output) => {
+          handleSSEEvent({
+            type: "LOG",
+            nodeId: output.nodeId,
+            level: output.status === "FAILED" ? "error" : "info",
+            message: `[Restored] ${nodeNames[output.nodeId] ?? `Node ${output.nodeId}`}: ${output.status} (v${output.version})`,
+            timestamp: now,
           });
-          hydratedOnce.current = true;
-        }
+        });
+
+        hydratedOnce.current = true;
       }
 
       if (project.deployment) {
+        console.log('[Studio] deployment hydration, steps:', project.deployment);
         const dep = project.deployment as any;
         handleSSEEvent({
           type: "DEPLOYMENT_COMPLETE",
@@ -194,6 +205,15 @@ export function Studio() {
           message: `[Restored] Shipyard build status: ${dep.buildStatus}`,
           timestamp: now,
         });
+
+        // If fully deployed, force all nodes to APPROVED so stale FAILED state
+        // from a previously-viewed project never bleeds through.
+        if (dep.stepADone && dep.stepBDone && dep.stepCDone && dep.stepDDone) {
+          console.log('[Studio] fully deployed → forcing all nodes APPROVED');
+          for (let i = 0; i < 5; i++) {
+            handleSSEEvent({ type: "NODE_STATUS", nodeId: i, status: NodeStatus.APPROVED });
+          }
+        }
       }
     }
   }, [project, projectId, handleSSEEvent]);
@@ -294,7 +314,8 @@ export function Studio() {
                 resumePipeline();
               }
             }}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${
+            disabled={isProjectComplete || (hasActiveNodes && !reviewReadyNode && !failedNode)}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
               reviewReadyNode
                 ? "bg-accent-success/10 border border-accent-success/30 text-accent-success hover:bg-accent-success/20"
                 : failedNode
@@ -302,11 +323,15 @@ export function Studio() {
                   : "bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20"
             }`}
             title={
-              reviewReadyNode
-                ? "Approve current node and continue"
-                : failedNode
-                  ? "Retry failed node"
-                  : "Start/Continue pipeline"
+              isProjectComplete
+                ? "Project is complete"
+                : hasActiveNodes && !reviewReadyNode && !failedNode
+                  ? "Pipeline is running…"
+                  : reviewReadyNode
+                    ? "Approve current node and continue"
+                    : failedNode
+                      ? "Retry failed node"
+                      : "Start/Continue pipeline"
             }
           >
             <Play size={12} /> {failedNode ? "Retry Node" : "Continue"}

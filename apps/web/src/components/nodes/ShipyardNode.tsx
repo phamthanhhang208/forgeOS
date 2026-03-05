@@ -6,6 +6,7 @@ import {
   Circle,
   Cog,
   ExternalLink,
+  Globe,
   Github,
   Download,
   Loader2,
@@ -116,6 +117,17 @@ export const ShipyardNode = memo(
                 Deployed
               </div>
               <div className="flex flex-wrap gap-1.5">
+                {deployment?.doAppUrl && (
+                  <a
+                    href={deployment.doAppUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] font-semibold bg-accent-success/10 border border-accent-success/30 rounded px-2 py-1 text-accent-success hover:bg-accent-success/20 transition-colors animate-tada"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Globe size={10} /> Live App
+                  </a>
+                )}
                 {deployment?.githubRepoUrl && (
                   <a
                     href={deployment.githubRepoUrl}
@@ -141,8 +153,7 @@ export const ShipyardNode = memo(
                     href={doConsoleUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] font-semibold bg-accent-primary/10 border border-accent-primary/30 rounded px-2 py-1 text-accent-primary hover:bg-accent-primary/20 transition-colors animate-tada"
-                    style={{ animationDelay: "0.1s" }}
+                    className="flex items-center gap-1 text-[10px] font-semibold bg-accent-primary/10 border border-accent-primary/30 rounded px-2 py-1 text-accent-primary hover:bg-accent-primary/20 transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ExternalLink size={10} /> DO Console

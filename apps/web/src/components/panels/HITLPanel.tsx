@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, RefreshCw, X, Code2, LayoutTemplate, Loader2 } from 'lucide-react'
+import { CheckCircle2, RefreshCw, X, Code2, LayoutTemplate, Loader2, Copy, Check } from 'lucide-react'
+import { DataEntitiesSection } from './DataEntityDiagram'
 import { usePipelineStore } from '../../store/pipeline.store'
 import { NODE_LABELS, MAX_REGENERATIONS } from '@forgeos/shared'
 import { toast } from 'sonner'
@@ -155,45 +156,6 @@ const StoryCard = ({ item }: { item: any }) => (
     </div>
 )
 
-// Special renderer for data entity cards
-const DataEntityCard = ({ item }: { item: any }) => (
-    <div className="bg-bg-elevated rounded-lg border border-border/40 overflow-hidden">
-        <div className="px-3 py-2 bg-bg-base/60 border-b border-border/40 flex items-center gap-2">
-            <span className="font-bold text-text-primary text-[13px] font-mono">{item.name}</span>
-            {item.fields?.length > 0 && (
-                <span className="text-[10px] text-text-muted font-mono ml-auto">{item.fields.length} fields</span>
-            )}
-        </div>
-        {item.fields?.length > 0 && (
-            <div className="px-3 py-2">
-                <table className="w-full">
-                    <tbody>
-                        {item.fields.map((f: any, i: number) => (
-                            <tr key={i} className="border-b border-border/20 last:border-0">
-                                <td className="py-1 pr-3 font-mono text-[12px] text-text-primary/90">{f.name}</td>
-                                <td className="py-1">
-                                    <span className="text-[11px] font-mono bg-accent-primary/10 text-accent-primary border border-accent-primary/20 px-1.5 py-0.5 rounded">
-                                        {f.type}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        )}
-        {item.relations?.length > 0 && (
-            <div className="px-3 pb-2 border-t border-border/20 pt-1.5 flex flex-col gap-0.5">
-                {item.relations.map((r: string, i: number) => (
-                    <p key={i} className="text-[11px] text-text-muted flex gap-1.5 items-start">
-                        <span className="text-accent-secondary/60 shrink-0">↔</span>{r}
-                    </p>
-                ))}
-            </div>
-        )}
-    </div>
-)
-
 // Special renderer for API endpoint rows
 const EndpointRow = ({ item }: { item: any }) => (
     <div className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0">
@@ -284,11 +246,7 @@ const JsonViewer = ({ data, depth = 0, parentKey = '' }: { data: any; depth?: nu
         }
         // Data entity cards
         if (parentKey === 'dataEntities') {
-            return (
-                <div className="flex flex-col gap-2 mt-1">
-                    {data.map((item, i) => <DataEntityCard key={i} item={item} />)}
-                </div>
-            )
+            return <DataEntitiesSection entities={data} />
         }
         // API endpoints
         if (parentKey === 'apiEndpoints') {
@@ -414,6 +372,13 @@ export function HITLPanel() {
     const [feedback, setFeedback] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [viewMode, setViewMode] = useState<'markdown' | 'json'>('markdown')
+    const [copied, setCopied] = useState(false)
+
+    const handleCopyJson = () => {
+        navigator.clipboard.writeText(jsonText)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
     const [isFetchingPayload, setIsFetchingPayload] = useState(false)
 
     const activeNodeState =
@@ -587,11 +552,25 @@ export function HITLPanel() {
                                             <Code2 size={12} /> Raw JSON
                                         </button>
                                     </div>
-                                    {!isValidJson && viewMode === 'json' && (
-                                        <span className="text-accent-danger">
-                                            Invalid JSON format
-                                        </span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        {!isValidJson && viewMode === 'json' && (
+                                            <span className="text-accent-danger">
+                                                Invalid JSON format
+                                            </span>
+                                        )}
+                                        {jsonText && (
+                                            <button
+                                                onClick={handleCopyJson}
+                                                title="Copy JSON"
+                                                className="flex items-center gap-1 px-2 py-1 rounded text-text-muted hover:text-accent-primary hover:bg-accent-primary/10 transition-all duration-200"
+                                            >
+                                                {copied
+                                                    ? <><Check size={12} className="text-accent-success" /><span className="text-accent-success">Copied</span></>
+                                                    : <><Copy size={12} /><span>Copy</span></>
+                                                }
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex-1 relative bg-[#1e1e1e]">
                                     {isFetchingPayload ? (

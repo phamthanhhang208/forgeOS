@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { NodeStatus, NODE_LABELS } from "@forgeos/shared";
 import type { PipelineNodeState, SSEEvent, Deployment } from "@forgeos/shared";
 import { api } from "../lib/api";
+import { queryClient } from "../App";
 
 export interface ConsoleEntry {
   id: number;
@@ -78,19 +79,34 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       activePanel: null,
       consoleLogs: [],
       conceptModalOpen: false,
+      kanbanOpen: false,
+      consoleOpen: false,
     }),
 
   setProjectId: (id) => set({ projectId: id }),
 
   handleSSEEvent: (event) => {
-    const { nodes } = get();
+    const { nodes, projectId } = get();
+
+    // Helper to keep the React Query cache fresh when backend state changes
+    // so that navigating away and back doesn't restore stale data.
+    const refreshCache = () => {
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      }
+    };
+
     switch (event.type) {
       case "NODE_STATUS":
+        console.log(`[Store] NODE_STATUS nodeId=${event.nodeId} status=${event.status} (was ${nodes[event.nodeId]?.status})`);
         set({
           nodes: nodes.map((n) =>
             n.id === event.nodeId ? { ...n, status: event.status } : n,
           ),
         });
+        if (event.status === NodeStatus.APPROVED || event.status === NodeStatus.FAILED || event.status === NodeStatus.REVIEW) {
+          refreshCache();
+        }
         break;
       case "NODE_PAYLOAD":
         set({
@@ -100,6 +116,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
               : n,
           ),
         });
+        refreshCache();
         break;
       case "SHIPYARD_STEP": {
         // Update deployment state
@@ -120,6 +137,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
               },
             }));
           }
+          refreshCache();
         }
         break;
       }
@@ -133,6 +151,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
             zipReady: event.zipReady,
           },
         }));
+        refreshCache();
         break;
       case "LOG": {
         const entry: ConsoleEntry = {
@@ -172,6 +191,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
             nodes: newNodes,
           };
         });
+        refreshCache();
         break;
       }
       case "HEARTBEAT":
@@ -187,6 +207,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await api.approveNode(projectId, nodeId, editedPayload);
+    queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project"] });
     set((s) => ({
       nodes: s.nodes.map((n) =>
         n.id === nodeId ? { ...n, status: NodeStatus.APPROVED } : n,
@@ -200,14 +222,16 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await api.rejectNode(projectId, nodeId, feedback);
+    queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project"] });
     set((s) => ({
       nodes: s.nodes.map((n) =>
         n.id === nodeId
           ? {
-              ...n,
-              status: NodeStatus.REGENERATING,
-              regenerationCount: n.regenerationCount + 1,
-            }
+            ...n,
+            status: NodeStatus.REGENERATING,
+            regenerationCount: n.regenerationCount + 1,
+          }
           : n,
       ),
       activePanel: null,
@@ -218,6 +242,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await api.retryNode(projectId, nodeId);
+    queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project"] });
     set((s) => ({
       nodes: s.nodes.map((n) =>
         n.id === nodeId ? { ...n, status: NodeStatus.QUEUED } : n,
@@ -229,6 +255,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await api.startPipeline(projectId);
+    queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project"] });
     set((s) => ({
       nodes: s.nodes.map((n) => {
         if (n.id === 0) return n; // input node stays APPROVED
@@ -257,6 +285,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await api.resumePipeline(projectId);
+    queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project"] });
   },
 
   clearConsole: () => set({ consoleLogs: [] }),
