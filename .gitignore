@@ -36,3 +36,4 @@ Thumbs.db
 # Temp / generated ZIP artifacts
 /tmp/
 *.zip
+.do/
