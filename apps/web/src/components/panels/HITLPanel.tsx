@@ -482,35 +482,34 @@ export function HITLPanel() {
     return (
         <AnimatePresence>
             {isOpen && (
-                <>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <motion.div
                         key="backdrop"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                         onClick={closePanel}
                     />
                     <motion.div
-                        key="panel"
-                        initial={{ x: '100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: '100%' }}
-                        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                        className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-bg-surface border-l border-border shadow-2xl flex flex-col"
+                        key="dialog"
+                        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                        transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+                        className="relative w-full max-w-2xl bg-bg-surface border border-border rounded-2xl shadow-2xl flex flex-col max-h-[88vh]"
                     >
-                        <div className="flex items-center justify-between p-4 border-b border-border bg-bg-elevated/50">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-bg-elevated/50 rounded-t-2xl shrink-0">
                             <div>
                                 <h2 className="text-xl font-bold font-mono tracking-tight text-text-primary">
                                     {label}
                                 </h2>
-                                <div className="text-sm font-mono text-text-muted mt-1">
+                                <div className="text-sm font-mono text-text-muted mt-0.5">
                                     v{activeNodeState!.version} of {MAX_REGENERATIONS}{' '}
                                     {isApproved && (
-                                        <span className="text-accent-success ml-2">
-                                            (Approved)
-                                        </span>
+                                        <span className="text-accent-success ml-2">(Approved)</span>
                                     )}
                                 </div>
                             </div>
@@ -522,41 +521,40 @@ export function HITLPanel() {
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-auto flex flex-col p-4 gap-4">
-                            {/* Invalid JSON warning banner */}
+                        {/* Scrollable body */}
+                        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
                             {!isValidJson && (
-                                <div className="bg-accent-danger/10 border border-accent-danger/30 text-accent-danger text-sm font-semibold px-3 py-2 rounded-md">
+                                <div className="bg-accent-danger/10 border border-accent-danger/30 text-accent-danger text-sm font-semibold px-3 py-2 rounded-md shrink-0">
                                     Invalid JSON — fix before approving
                                 </div>
                             )}
 
-                            <div className="flex flex-col flex-1 border border-border rounded-lg overflow-hidden shrink-0 min-h-[400px]">
-                                <div className="bg-bg-elevated px-3 py-1.5 text-xs font-mono text-text-muted border-b border-border flex justify-between items-center">
+                            <div className="flex flex-col border border-border rounded-lg overflow-hidden">
+                                {/* Tab bar */}
+                                <div className="bg-bg-elevated px-3 py-1.5 text-xs font-mono text-text-muted border-b border-border flex justify-between items-center shrink-0">
                                     <div className="flex bg-bg-surface rounded-md p-0.5 border border-border/50">
                                         <button
                                             onClick={() => setViewMode('markdown')}
                                             className={`flex items-center gap-1.5 px-3 py-1 rounded-sm transition-colors ${viewMode === 'markdown'
-                                                    ? 'bg-border text-text-primary shadow-sm'
-                                                    : 'text-text-muted hover:text-text-primary'
-                                                }`}
+                                                ? 'bg-border text-text-primary shadow-sm'
+                                                : 'text-text-muted hover:text-text-primary'
+                                            }`}
                                         >
                                             <LayoutTemplate size={12} /> Format
                                         </button>
                                         <button
                                             onClick={() => setViewMode('json')}
                                             className={`flex items-center gap-1.5 px-3 py-1 rounded-sm transition-colors ${viewMode === 'json'
-                                                    ? 'bg-border text-text-primary shadow-sm'
-                                                    : 'text-text-muted hover:text-text-primary'
-                                                }`}
+                                                ? 'bg-border text-text-primary shadow-sm'
+                                                : 'text-text-muted hover:text-text-primary'
+                                            }`}
                                         >
                                             <Code2 size={12} /> Raw JSON
                                         </button>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {!isValidJson && viewMode === 'json' && (
-                                            <span className="text-accent-danger">
-                                                Invalid JSON format
-                                            </span>
+                                            <span className="text-accent-danger">Invalid JSON format</span>
                                         )}
                                         {jsonText && (
                                             <button
@@ -572,24 +570,26 @@ export function HITLPanel() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="flex-1 relative bg-[#1e1e1e]">
-                                    {isFetchingPayload ? (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-bg-surface">
-                                            <Loader2 className="animate-spin text-accent-primary" size={24} />
+
+                                {/* Content */}
+                                {isFetchingPayload ? (
+                                    <div className="h-48 flex items-center justify-center bg-bg-surface">
+                                        <Loader2 className="animate-spin text-accent-primary" size={24} />
+                                    </div>
+                                ) : !activeNodeState?.payload ? (
+                                    <div className="h-48 flex items-center justify-center bg-bg-surface text-text-muted">
+                                        <p className="text-sm">No output data available yet.</p>
+                                    </div>
+                                ) : viewMode === 'markdown' && isValidJson && parsedPayload ? (
+                                    <div className="p-6 bg-bg-surface text-text-primary">
+                                        <div className="max-w-3xl mx-auto prose prose-invert prose-sm">
+                                            <JsonViewer data={parsedPayload} />
                                         </div>
-                                    ) : !activeNodeState?.payload ? (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-bg-surface text-text-muted">
-                                            <p className="text-sm">No output data available yet.</p>
-                                        </div>
-                                    ) : viewMode === 'markdown' && isValidJson && parsedPayload ? (
-                                        <div className="absolute inset-0 overflow-y-auto p-6 bg-bg-surface text-text-primary">
-                                            <div className="max-w-3xl mx-auto prose prose-invert prose-sm">
-                                                <JsonViewer data={parsedPayload} />
-                                            </div>
-                                        </div>
-                                    ) : (
+                                    </div>
+                                ) : (
+                                    <div className="h-[420px] bg-[#1e1e1e]">
                                         <Editor
-                                            height="100%"
+                                            height="420px"
                                             defaultLanguage="json"
                                             theme="vs-dark"
                                             value={jsonText}
@@ -604,8 +604,8 @@ export function HITLPanel() {
                                                 lineNumbers: 'on',
                                             }}
                                         />
-                                    )}
-                                </div>
+                                    </div>
+                                )}
                             </div>
 
                             {!isApproved && (
@@ -624,13 +624,12 @@ export function HITLPanel() {
                             )}
                         </div>
 
+                        {/* Footer */}
                         {!isApproved && (
-                            <div className="p-4 border-t border-border bg-bg-elevated/50 flex flex-col gap-2">
+                            <div className="px-5 py-4 border-t border-border bg-bg-elevated/50 rounded-b-2xl flex flex-col gap-2 shrink-0">
                                 <div className="flex items-center justify-between font-mono text-xs text-text-muted px-1">
                                     <span>
-                                        {MAX_REGENERATIONS -
-                                            (activeNodeState!.regenerationCount || 0)}{' '}
-                                        attempts remaining
+                                        {MAX_REGENERATIONS - (activeNodeState!.regenerationCount || 0)} attempts remaining
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -639,39 +638,22 @@ export function HITLPanel() {
                                         disabled={isSubmitting || !feedback.trim()}
                                         className="flex-[0.3] py-2.5 px-4 rounded-md font-semibold text-sm border border-border bg-bg-base text-text-primary hover:bg-border disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                                     >
-                                        {isSubmitting ? (
-                                            <RefreshCw
-                                                size={16}
-                                                className="animate-spin"
-                                            />
-                                        ) : (
-                                            <RefreshCw size={16} />
-                                        )}
+                                        {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                                         Reject
                                     </button>
                                     <button
                                         onClick={handleApprove}
                                         disabled={isSubmitting || !isValidJson}
-                                        className={`flex-[0.7] py-2.5 px-4 rounded-md font-semibold text-sm bg-accent-primary text-bg-base hover:bg-[#00e5ff] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 ${isValidJson && !isSubmitting
-                                                ? 'animate-pulse'
-                                                : ''
-                                            }`}
+                                        className={`flex-[0.7] py-2.5 px-4 rounded-md font-semibold text-sm bg-accent-primary text-bg-base hover:bg-[#00e5ff] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 ${isValidJson && !isSubmitting ? 'animate-pulse' : ''}`}
                                     >
-                                        {isSubmitting ? (
-                                            <RefreshCw
-                                                size={16}
-                                                className="animate-spin"
-                                            />
-                                        ) : (
-                                            <CheckCircle2 size={16} />
-                                        )}
+                                        {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                                         Approve & Continue
                                     </button>
                                 </div>
                             </div>
                         )}
                     </motion.div>
-                </>
+                </div>
             )}
         </AnimatePresence>
     )
