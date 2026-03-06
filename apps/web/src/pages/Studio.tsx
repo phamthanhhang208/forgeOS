@@ -18,7 +18,7 @@ import { HITLPanel } from "../components/panels/HITLPanel";
 import { KanbanModal } from "../components/modals/KanbanModal";
 import { ConceptDetailModal } from "../components/modals/ConceptDetailModal";
 import { ConsolePanel } from "../components/panels/ConsolePanel";
-import { Project } from "@forgeos/shared";
+import type { Project, Deployment } from "@forgeos/shared";
 
 export function Studio() {
   const { projectId } = useParams();
@@ -70,29 +70,102 @@ export function Studio() {
   // Initialize project ID on mount — always wipe state before loading a new project
   useEffect(() => {
     if (projectId) {
-      console.log('[Studio] init projectId=', projectId);
       initNodes();
       hydratedOnce.current = false;
       setProjectId(projectId);
     }
     return () => {
-      console.log('[Studio] cleanup projectId=', projectId);
       setProjectId("");
       initNodes();
       hydratedOnce.current = false;
     };
   }, [projectId, setProjectId, initNodes]);
 
-  // Hydrate node states from DB fetch — only once per project load.
-  // After initial hydration, SSE handles all live updates.
+  // Hydrate Zustand store from DB project data.
+  // Builds the complete state atomically to avoid sequential read/write races.
   useEffect(() => {
-    console.log('[Studio] hydrate effect, hydratedOnce=', hydratedOnce.current, 'project?.id=', project?.id, 'projectId=', projectId);
-    if (hydratedOnce.current) return;
-    if (project && project.id === projectId) {
-      const outputs = project.agentOutputs;
+    if (!project || project.id !== projectId) return;
 
+    const outputs = project.agentOutputs;
+    const currentNode = project.currentNode || 0;
+
+    // --- Build nodes array ---
+    const hydratedNodes = usePipelineStore.getState().nodes.map((n) => ({ ...n }));
+
+    if (outputs) {
+      // Pick best (latest version) output per node
+      const bestByNode = new Map<number, any>();
+      for (const output of outputs as any[]) {
+        const prev = bestByNode.get(output.nodeId);
+        if (!prev || output.version > prev.version) {
+          bestByNode.set(output.nodeId, output);
+        }
+      }
+
+      bestByNode.forEach((output) => {
+        if (hydratedNodes[output.nodeId]) {
+          hydratedNodes[output.nodeId].status = output.status;
+          if (
+            output.jsonPayload &&
+            Object.keys(output.jsonPayload).length > 0
+          ) {
+            hydratedNodes[output.nodeId].payload = output.jsonPayload;
+            hydratedNodes[output.nodeId].version = output.version;
+          }
+        }
+      });
+
+      // Enforce linear progression: all nodes before currentNode = APPROVED
+      for (let i = 0; i < currentNode; i++) {
+        if (hydratedNodes[i]) {
+          hydratedNodes[i].status = NodeStatus.APPROVED;
+        }
+      }
+
+    }
+
+    // --- Build deployment state ---
+    let hydratedDeployment: Partial<Deployment> | null = null;
+
+    if (project.deployment) {
+      const dep = project.deployment as any;
+      hydratedDeployment = {
+        githubRepoUrl: dep.githubRepoUrl || "",
+        doAppUrl: dep.doAppUrl || "",
+        zipReady: !!dep.zipPath,
+        doAppId: dep.doAppId || undefined,
+        stepADone: !!dep.stepADone,
+        stepBDone: !!dep.stepBDone,
+        stepCDone: !!dep.stepCDone,
+        stepDDone: !!dep.stepDDone,
+      };
+
+      // If fully deployed, force all nodes to APPROVED
+      if (dep.stepADone && dep.stepBDone && dep.stepCDone && dep.stepDDone) {
+        for (let i = 0; i < 5; i++) {
+          if (hydratedNodes[i]) {
+            hydratedNodes[i].status = NodeStatus.APPROVED;
+          }
+        }
+      }
+    }
+
+    // --- Single atomic store update ---
+    usePipelineStore.setState({
+      nodes: hydratedNodes,
+      deployment: hydratedDeployment,
+    });
+
+    // --- Synthetic console logs — only on first load ---
+    if (!hydratedOnce.current) {
+      const now = new Date().toISOString();
+      const nodeNames: Record<number, string> = {
+        1: "Strategist",
+        2: "Business Analyst",
+        3: "Tech Lead",
+        4: "Shipyard",
+      };
       if (outputs) {
-        // Hydrate best status per node (latest version wins)
         const bestByNode = new Map<number, any>();
         for (const output of outputs as any[]) {
           const prev = bestByNode.get(output.nodeId);
@@ -100,47 +173,6 @@ export function Studio() {
             bestByNode.set(output.nodeId, output);
           }
         }
-
-        console.log('[Studio] bestByNode:', Array.from(bestByNode.entries()).map(([k, v]) => `node${k}=${v.status}(v${v.version})`).join(', '));
-
-        bestByNode.forEach((output) => {
-          handleSSEEvent({
-            type: "NODE_STATUS",
-            nodeId: output.nodeId,
-            status: output.status,
-          });
-          if (
-            output.jsonPayload &&
-            Object.keys(output.jsonPayload).length > 0
-          ) {
-            handleSSEEvent({
-              type: "NODE_PAYLOAD",
-              nodeId: output.nodeId,
-              version: output.version,
-              payload: output.jsonPayload as Record<string, unknown>,
-            });
-          }
-        });
-
-        // Enforce Linear Progression UI Rule:
-        const currentNode = project.currentNode || 0;
-        console.log('[Studio] currentNode=', currentNode, 'forcing nodes 0..', currentNode - 1, 'to APPROVED');
-        for (let i = 0; i < currentNode; i++) {
-          handleSSEEvent({
-            type: "NODE_STATUS",
-            nodeId: i,
-            status: NodeStatus.APPROVED,
-          });
-        }
-
-        // Synthetic console logs from DB state
-        const now = new Date().toISOString();
-        const nodeNames: Record<number, string> = {
-          1: "Strategist",
-          2: "Business Analyst",
-          3: "Tech Lead",
-          4: "Shipyard",
-        };
         bestByNode.forEach((output) => {
           handleSSEEvent({
             type: "LOG",
@@ -150,54 +182,26 @@ export function Studio() {
             timestamp: now,
           });
         });
-
-        hydratedOnce.current = true;
       }
-
       if (project.deployment) {
-        console.log('[Studio] deployment hydration, steps:', project.deployment);
         const dep = project.deployment as any;
-        handleSSEEvent({
-          type: "DEPLOYMENT_COMPLETE",
-          githubUrl: dep.githubRepoUrl || "",
-          doAppUrl: dep.doAppUrl || "",
-          zipReady: !!dep.zipPath,
-          doAppId: dep.doAppId || undefined,
-        });
-
-        // Hydrate individual shipyard steps from deployment flags
-        const stepFlags = [
-          {
-            step: "A" as const,
-            done: dep.stepADone,
-            label: "Clone & inject schema",
-          },
-          { step: "B" as const, done: dep.stepBDone, label: "Push to GitHub" },
-          {
-            step: "C" as const,
-            done: dep.stepCDone,
-            label: "Deploy to DigitalOcean",
-          },
-          { step: "D" as const, done: dep.stepDDone, label: "Build active" },
-        ];
-        const now = new Date().toISOString();
-        for (const sf of stepFlags) {
-          if (sf.done) {
-            handleSSEEvent({
-              type: "SHIPYARD_STEP",
-              step: sf.step,
-              status: "DONE",
-            });
+        const stepLabels: Record<string, string> = {
+          A: "Clone & inject schema",
+          B: "Push to GitHub",
+          C: "Deploy to DigitalOcean",
+          D: "Build active",
+        };
+        for (const [step, label] of Object.entries(stepLabels)) {
+          if ((dep as any)[`step${step}Done`]) {
             handleSSEEvent({
               type: "LOG",
               nodeId: 4,
               level: "info",
-              message: `[Restored] Step ${sf.step}: ${sf.label} — done`,
+              message: `[Restored] Step ${step}: ${label} — done`,
               timestamp: now,
             });
           }
         }
-        // Log current build status
         handleSSEEvent({
           type: "LOG",
           nodeId: 4,
@@ -205,16 +209,8 @@ export function Studio() {
           message: `[Restored] Shipyard build status: ${dep.buildStatus}`,
           timestamp: now,
         });
-
-        // If fully deployed, force all nodes to APPROVED so stale FAILED state
-        // from a previously-viewed project never bleeds through.
-        if (dep.stepADone && dep.stepBDone && dep.stepCDone && dep.stepDDone) {
-          console.log('[Studio] fully deployed → forcing all nodes APPROVED');
-          for (let i = 0; i < 5; i++) {
-            handleSSEEvent({ type: "NODE_STATUS", nodeId: i, status: NodeStatus.APPROVED });
-          }
-        }
       }
+      hydratedOnce.current = true;
     }
   }, [project, projectId, handleSSEEvent]);
 

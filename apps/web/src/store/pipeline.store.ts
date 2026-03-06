@@ -98,7 +98,6 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
 
     switch (event.type) {
       case "NODE_STATUS":
-        console.log(`[Store] NODE_STATUS nodeId=${event.nodeId} status=${event.status} (was ${nodes[event.nodeId]?.status})`);
         set({
           nodes: nodes.map((n) =>
             n.id === event.nodeId ? { ...n, status: event.status } : n,
