@@ -52,6 +52,7 @@ model AgentOutput {
   status         NodeStatus @default(QUEUED)
   rejectedReason String?
   approvedAt     DateTime?
+  confidence     Int?
   createdAt      DateTime   @default(now())
 }
 

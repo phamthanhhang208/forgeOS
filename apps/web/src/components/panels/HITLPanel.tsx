@@ -12,6 +12,7 @@ import {
   Check,
 } from "lucide-react";
 import { DataEntitiesSection } from "./DataEntityDiagram";
+import { ConfidenceBadge } from "../ConfidenceBadge";
 import { usePipelineStore } from "../../store/pipeline.store";
 import { NODE_LABELS, MAX_REGENERATIONS } from "@forgeos/shared";
 import { toast } from "sonner";
@@ -672,6 +673,26 @@ export function HITLPanel() {
 
             {/* Scrollable body */}
             <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
+              {activeNodeState?.confidence !== undefined && activeNodeState?.confidence !== null && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  paddingBottom: '12px',
+                  borderBottom: '1px solid #1e1e2e',
+                }}>
+                  <span style={{
+                    color: '#64748b',
+                    fontSize: '12px',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}>
+                    CONFIDENCE
+                  </span>
+                  <ConfidenceBadge score={activeNodeState.confidence} size="md" />
+                </div>
+              )}
+
               {!isValidJson && (
                 <div className="bg-accent-danger/10 border border-accent-danger/30 text-accent-danger text-sm font-semibold px-3 py-2 rounded-md shrink-0">
                   Invalid JSON — fix before approving

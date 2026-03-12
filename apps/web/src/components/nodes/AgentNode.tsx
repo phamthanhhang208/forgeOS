@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { BaseNode } from './BaseNode'
 import { usePipelineStore } from '../../store/pipeline.store'
+import { ConfidenceBadge } from '../ConfidenceBadge'
 
 interface AgentNodeData {
     id: number
@@ -21,6 +22,7 @@ interface AgentNodeData {
     status: NodeStatus
     version?: number
     timestamp?: string
+    confidence?: number
 }
 
 export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
@@ -137,6 +139,13 @@ export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
                         >
                             <FileSearch size={10} />
                         </button>
+                    </div>
+                )}
+
+                {/* Confidence Badge */}
+                {(isReview || isApproved) && (
+                    <div style={{ marginTop: '6px' }}>
+                        <ConfidenceBadge score={data.confidence} size="sm" />
                     </div>
                 )}
 

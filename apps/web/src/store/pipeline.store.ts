@@ -111,7 +111,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
         set({
           nodes: nodes.map((n) =>
             n.id === event.nodeId
-              ? { ...n, payload: event.payload, version: event.version }
+              ? { ...n, payload: event.payload, version: event.version, confidence: event.confidence }
               : n,
           ),
         });

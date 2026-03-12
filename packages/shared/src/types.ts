@@ -72,5 +72,6 @@ export interface PipelineNodeState {
   payload: Record<string, unknown> | null
   version: number
   regenerationCount: number
+  confidence?: number
   error?: string
 }

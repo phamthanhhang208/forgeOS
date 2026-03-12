@@ -20,6 +20,7 @@ export interface AnalystOutput {
         relations: string[]
     }>
     integrations: string[]
+    confidence: number
 }
 
 export async function runAnalyst(data: {
@@ -31,7 +32,9 @@ export async function runAnalyst(data: {
 
 Your output will be reviewed by both technical developers AND non-technical founders, so describe user needs in plain human language. Avoid technical jargon in persona descriptions and user stories.
 
-CRITICAL: Respond ONLY with valid JSON. No markdown. No preamble. JSON only.`
+CRITICAL: Respond ONLY with valid JSON. No markdown. No preamble. JSON only.
+
+At the end of your JSON response, always include a "confidence" field (integer 0–100) representing how confident you are in the quality and completeness of your output. Base it on: clarity of the input concept, completeness of your analysis, and assumptions you had to make. 100 = very clear brief, strong output. Below 50 = vague input or significant assumptions made.`
 
     const userPrompt = `Transform this approved strategy into detailed product requirements.
 

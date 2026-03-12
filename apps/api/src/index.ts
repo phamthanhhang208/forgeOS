@@ -4,6 +4,7 @@ import { redis, redisSub } from './redis'
 import { projectsRouter } from './routes/projects'
 import { streamRouter } from './routes/stream'
 import { agenciesRouter } from './routes/agencies'
+import { exportRouter } from './routes/export'
 import { errorHandler } from './middleware/errorHandler'
 import './workers/pipeline.worker' // register worker on startup
 
@@ -33,6 +34,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/projects', projectsRouter)
 app.use('/api/projects', streamRouter)
 app.use('/api/agencies', agenciesRouter)
+app.use('/api/pipeline', exportRouter)
 
 // Global error handler (must be last)
 app.use(errorHandler)

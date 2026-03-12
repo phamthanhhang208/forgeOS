@@ -19,6 +19,7 @@ export interface StrategistOutput {
     competitorLandscape: string
     riskFactors: string[]
     successMetrics: string[]
+    confidence: number
 }
 
 export async function runStrategist(data: {
@@ -32,7 +33,9 @@ export async function runStrategist(data: {
 
 Your job is to analyze a raw SaaS concept and produce a focused, actionable strategic brief. Write in plain business language — specific and concrete, never generic.
 
-CRITICAL: Respond ONLY with valid JSON matching the exact schema. No markdown, no explanation. Pure JSON only.`
+CRITICAL: Respond ONLY with valid JSON matching the exact schema. No markdown, no explanation. Pure JSON only.
+
+At the end of your JSON response, always include a "confidence" field (integer 0–100) representing how confident you are in the quality and completeness of your output. Base it on: clarity of the input concept, completeness of your analysis, and assumptions you had to make. 100 = very clear brief, strong output. Below 50 = vague input or significant assumptions made.`
 
     const userPrompt = `Analyze this SaaS concept and return a strategic analysis as JSON.
 

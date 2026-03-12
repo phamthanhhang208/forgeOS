@@ -7,6 +7,7 @@ export type SSEEvent =
       nodeId: number;
       version: number;
       payload: Record<string, unknown>;
+      confidence?: number;
     }
   | {
       type: "SHIPYARD_STEP";

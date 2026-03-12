@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -8,6 +8,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Download,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { usePipelineStore } from "../store/pipeline.store";
@@ -15,6 +16,7 @@ import { NodeStatus } from "@forgeos/shared";
 import { useSSE } from "../hooks/useSSE";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
 import { HITLPanel } from "../components/panels/HITLPanel";
+import { ExportModal } from "../components/ExportModal";
 import { KanbanModal } from "../components/modals/KanbanModal";
 import { ConceptDetailModal } from "../components/modals/ConceptDetailModal";
 import { ConsolePanel } from "../components/panels/ConsolePanel";
@@ -50,6 +52,12 @@ export function Studio() {
   const isProjectComplete =
     shipyardNode?.status === NodeStatus.APPROVED ||
     !!(deployment?.stepADone && deployment?.stepBDone && deployment?.stepCDone && deployment?.stepDDone);
+  const allAgentNodesApproved =
+    nodes[1]?.status === NodeStatus.APPROVED &&
+    nodes[2]?.status === NodeStatus.APPROVED &&
+    nodes[3]?.status === NodeStatus.APPROVED;
+
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Poll DB when nodes are actively running so missed SSE events self-correct
   const {
@@ -334,11 +342,21 @@ export function Studio() {
           </button>
         </div>
 
-        {demoMode && (
-          <div className="bg-accent-secondary/20 border border-accent-secondary text-accent-secondary text-xs font-bold px-2 py-1 rounded animate-pulse">
-            DEMO MODE
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {allAgentNodesApproved && (
+            <button
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border border-accent-primary text-accent-primary bg-accent-primary/5 rounded-md hover:bg-accent-primary/15 transition-colors"
+            >
+              <Download size={12} /> Export Handoff
+            </button>
+          )}
+          {demoMode && (
+            <div className="bg-accent-secondary/20 border border-accent-secondary text-accent-secondary text-xs font-bold px-2 py-1 rounded animate-pulse">
+              DEMO MODE
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Main Workspace */}
@@ -346,6 +364,13 @@ export function Studio() {
         <div className="flex-1 relative min-h-0">
           <PipelineCanvas concept={project.concept} />
           <HITLPanel />
+          {projectId && (
+            <ExportModal
+              projectId={projectId}
+              isOpen={exportOpen}
+              onClose={() => setExportOpen(false)}
+            />
+          )}
           <KanbanModal />
           <ConceptDetailModal concept={project.concept} />
         </div>

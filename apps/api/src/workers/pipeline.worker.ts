@@ -254,9 +254,20 @@ const worker = new Worker<PipelineJobData>(
       );
     }
 
+    // Extract and clamp confidence — never crash if LLM forgets to include it
+    const rawConfidence = (payload as Record<string, unknown>).confidence;
+    const confidence =
+      typeof rawConfidence === "number"
+        ? Math.min(100, Math.max(0, Math.round(rawConfidence)))
+        : null;
+
     await prisma.agentOutput.update({
       where: { id: output.id },
-      data: { jsonPayload: payload as Prisma.InputJsonValue, status: "REVIEW" },
+      data: {
+        jsonPayload: payload as Prisma.InputJsonValue,
+        status: "REVIEW",
+        confidence,
+      },
     });
 
     await prisma.project.update({
@@ -270,6 +281,7 @@ const worker = new Worker<PipelineJobData>(
       nodeId,
       version: output.version,
       payload: payload as Record<string, unknown>,
+      confidence: confidence ?? undefined,
     });
     await publishEvent(projectId, {
       type: "NODE_STATUS",

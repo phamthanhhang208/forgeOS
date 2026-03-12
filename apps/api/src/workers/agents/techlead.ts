@@ -14,6 +14,7 @@ export interface TechLeadOutput {
     phase2Features: Array<{ feature: string; estimatedDays: number }>
     apiEndpoints: Array<{ method: string; path: string; description: string }>
     envVarsRequired: string[]
+    confidence: number
 }
 
 // The base boilerplate schema that will be EXTENDED (not replaced)
@@ -39,7 +40,9 @@ Your technical plan will be read by BOTH developers (who need accuracy) and non-
 
 Produce working, valid Prisma schema syntax — this will be directly used in the codebase.
 
-CRITICAL: Respond ONLY with valid JSON. The prismaSchemaDelta field must contain valid Prisma schema syntax escaped as a JSON string.`
+CRITICAL: Respond ONLY with valid JSON. The prismaSchemaDelta field must contain valid Prisma schema syntax escaped as a JSON string.
+
+At the end of your JSON response, always include a "confidence" field (integer 0–100) representing how confident you are in the quality and completeness of your output. Base it on: clarity of the input concept, completeness of your analysis, and assumptions you had to make. 100 = very clear brief, strong output. Below 50 = vague input or significant assumptions made.`
 
     const userPrompt = `Design the technical architecture and build plan for this SaaS product.
 
