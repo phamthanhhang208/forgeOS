@@ -37,15 +37,12 @@ export function Studio() {
   const approveNode = usePipelineStore((s) => s.approveNode);
   const retryNode = usePipelineStore((s) => s.retryNode);
   const resumePipeline = usePipelineStore((s) => s.resumePipeline);
-  const openKanban = usePipelineStore((s) => s.openKanban);
-
   const hydratedOnce = useRef(false);
 
   const reviewReadyNode = nodes.find((n) => n.status === NodeStatus.REVIEW);
   const failedNode = nodes.find((n) => n.status === NodeStatus.FAILED);
   const techLeadNode = nodes[3];
   const shipyardNode = nodes[4];
-  const hasKanbanData = techLeadNode?.status === NodeStatus.APPROVED; // Tech Lead is Node 3
   const hasActiveNodes = nodes.some(
     (n) => n.status === NodeStatus.QUEUED || n.status === NodeStatus.PROCESSING,
   );
