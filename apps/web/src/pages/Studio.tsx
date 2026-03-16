@@ -275,15 +275,6 @@ export function Studio() {
         </div>
 
         <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
-          {hasKanbanData && (
-            <button
-              onClick={openKanban}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-bg-base border border-border rounded-md hover:bg-bg-elevated transition-colors"
-              title="Open Kanban Board"
-            >
-              📋 Kanban Board
-            </button>
-          )}
           <button
             onClick={() => alert("Pause functionality coming soon!")}
             disabled={hasReachedShipyard}
