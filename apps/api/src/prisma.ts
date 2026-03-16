@@ -20,6 +20,9 @@ const pool = new pg.Pool({
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.slice(1),
+    ssl: url.searchParams.get('sslmode') === 'require'
+        ? { rejectUnauthorized: false }
+        : undefined,
 })
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
