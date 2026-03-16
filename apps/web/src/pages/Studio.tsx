@@ -41,7 +41,6 @@ export function Studio() {
 
   const reviewReadyNode = nodes.find((n) => n.status === NodeStatus.REVIEW);
   const failedNode = nodes.find((n) => n.status === NodeStatus.FAILED);
-  const techLeadNode = nodes[3];
   const shipyardNode = nodes[4];
   const hasActiveNodes = nodes.some(
     (n) => n.status === NodeStatus.QUEUED || n.status === NodeStatus.PROCESSING,
