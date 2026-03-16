@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -53,7 +53,9 @@ export function Studio() {
     nodes[2]?.status === NodeStatus.APPROVED &&
     nodes[3]?.status === NodeStatus.APPROVED;
 
-  const [exportOpen, setExportOpen] = useState(false);
+  const exportOpen = usePipelineStore((s) => s.exportOpen);
+  const openExport = usePipelineStore((s) => s.openExport);
+  const closeExport = usePipelineStore((s) => s.closeExport);
 
   // Poll DB when nodes are actively running so missed SSE events self-correct
   const {
@@ -332,7 +334,7 @@ export function Studio() {
         <div className="flex items-center gap-2">
           {allAgentNodesApproved && (
             <button
-              onClick={() => setExportOpen(true)}
+              onClick={() => openExport()}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border border-accent-primary text-accent-primary bg-accent-primary/5 rounded-md hover:bg-accent-primary/15 transition-colors"
             >
               <Download size={12} /> Export Handoff
@@ -355,7 +357,7 @@ export function Studio() {
             <ExportModal
               projectId={projectId}
               isOpen={exportOpen}
-              onClose={() => setExportOpen(false)}
+              onClose={() => closeExport()}
             />
           )}
           <KanbanModal />

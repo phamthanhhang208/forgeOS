@@ -23,6 +23,7 @@ interface PipelineStore {
   consoleLogs: ConsoleEntry[];
   consoleOpen: boolean;
   kanbanOpen: boolean;
+  exportOpen: boolean;
   conceptModalOpen: boolean;
 
   // Actions
@@ -44,6 +45,8 @@ interface PipelineStore {
   toggleConsole: () => void;
   openKanban: () => void;
   closeKanban: () => void;
+  openExport: () => void;
+  closeExport: () => void;
   openConceptModal: () => void;
   closeConceptModal: () => void;
 }
@@ -70,6 +73,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   consoleLogs: [],
   consoleOpen: false,
   kanbanOpen: false,
+  exportOpen: false,
   conceptModalOpen: false,
 
   initNodes: () =>
@@ -80,6 +84,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       consoleLogs: [],
       conceptModalOpen: false,
       kanbanOpen: false,
+      exportOpen: false,
       consoleOpen: false,
     }),
 
@@ -292,6 +297,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   toggleConsole: () => set((s) => ({ consoleOpen: !s.consoleOpen })),
   openKanban: () => set({ kanbanOpen: true }),
   closeKanban: () => set({ kanbanOpen: false }),
+  openExport: () => set({ exportOpen: true }),
+  closeExport: () => set({ exportOpen: false }),
   openConceptModal: () => set({ conceptModalOpen: true }),
   closeConceptModal: () => set({ conceptModalOpen: false }),
 }));

@@ -12,6 +12,7 @@ import {
     Play,
     RotateCcw,
     Kanban,
+    Download,
 } from 'lucide-react'
 import { BaseNode } from './BaseNode'
 import { usePipelineStore } from '../../store/pipeline.store'
@@ -31,6 +32,12 @@ export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
     const approveNode = usePipelineStore((s) => s.approveNode)
     const retryNode = usePipelineStore((s) => s.retryNode)
     const openKanban = usePipelineStore((s) => s.openKanban)
+    const openExport = usePipelineStore((s) => s.openExport)
+    const allAgentNodesApproved = usePipelineStore((s) =>
+        s.nodes[1]?.status === NodeStatus.APPROVED &&
+        s.nodes[2]?.status === NodeStatus.APPROVED &&
+        s.nodes[3]?.status === NodeStatus.APPROVED
+    )
     const { status, label, version } = data
     const isTechLead = data.id === 3
 
@@ -152,14 +159,24 @@ export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
                     </div>
                 )}
 
-                {/* Kanban button for Tech Lead node */}
+                {/* Kanban + Export buttons for Tech Lead node */}
                 {isTechLead && isApproved && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); openKanban() }}
-                        className="nodrag flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-accent-primary/10 border border-accent-primary/40 text-accent-primary rounded-md px-2 py-1.5 hover:bg-accent-primary/20 transition-colors mt-1"
-                    >
-                        <Kanban size={11} /> Kanban Board
-                    </button>
+                    <div className="flex gap-1.5 mt-1">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); openKanban() }}
+                            className="nodrag flex-1 flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-wider bg-accent-primary/10 border border-accent-primary/40 text-accent-primary rounded-md px-2 py-1.5 hover:bg-accent-primary/20 transition-colors"
+                        >
+                            <Kanban size={11} /> Kanban
+                        </button>
+                        {allAgentNodesApproved && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); openExport() }}
+                                className="nodrag flex-1 flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-wider bg-accent-primary/10 border border-accent-primary/40 text-accent-primary rounded-md px-2 py-1.5 hover:bg-accent-primary/20 transition-colors"
+                            >
+                                <Download size={11} /> Export
+                            </button>
+                        )}
+                    </div>
                 )}
 
                 {/* Version Info */}
