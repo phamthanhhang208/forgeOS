@@ -1,0 +1,7 @@
+{
+  "sql.linter.driver": "PostgreSQL",
+  "sql.enableIntelliSense": false,
+  "[sql]": {
+    "editor.defaultFormatter": null
+  }
+}
