@@ -1,5 +1,4 @@
 import { Worker, Job } from "bullmq";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { publishEvent } from "../lib/pubsub";
 import { NodeStatus } from "@forgeos/shared";
@@ -43,6 +42,9 @@ interface PipelineJobData {
   iterationPrompt?: string;
   demoMode?: boolean;
 }
+
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const parsedRedis = new URL(redisUrl)
 
 const worker = new Worker<PipelineJobData>(
   "agentPipeline",
@@ -291,12 +293,10 @@ const worker = new Worker<PipelineJobData>(
   },
   {
     connection: {
-      host: process.env.REDIS_URL
-        ? new URL(process.env.REDIS_URL).hostname
-        : "localhost",
-      port: process.env.REDIS_URL
-        ? parseInt(new URL(process.env.REDIS_URL).port || "6379", 10)
-        : 6379,
+      host: parsedRedis.hostname,
+      port: parseInt(parsedRedis.port || '6379'),
+      password: parsedRedis.password || undefined,
+      tls: parsedRedis.protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined,
     },
     concurrency: 5,
   },

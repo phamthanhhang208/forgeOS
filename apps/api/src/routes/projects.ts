@@ -21,15 +21,17 @@ import path from 'path'
 
 const router = Router()
 
-const redisHost = process.env.REDIS_URL ? new URL(process.env.REDIS_URL).hostname : 'localhost'
-const redisPort = process.env.REDIS_URL ? parseInt(new URL(process.env.REDIS_URL).port || '6379') : 6379
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const parsedRedis = new URL(redisUrl)
 
-console.log(`[Queue] Connecting BullMQ to ${redisHost}:${redisPort}`)
+console.log(`[Queue] Connecting BullMQ to ${parsedRedis.hostname}:${parsedRedis.port}`)
 
 const pipelineQueue = new Queue('agentPipeline', {
     connection: {
-        host: redisHost,
-        port: redisPort,
+        host: parsedRedis.hostname,
+        port: parseInt(parsedRedis.port || '6379'),
+        password: parsedRedis.password || undefined,
+        tls: parsedRedis.protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined,
     },
 })
 
