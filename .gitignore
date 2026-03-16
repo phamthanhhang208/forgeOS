@@ -7,6 +7,10 @@ dist/
 build/
 .turbo/
 
+# Transpiled JS in src directories (editor auto-compile artifacts)
+apps/web/src/**/*.js
+apps/api/src/**/*.js
+
 # Environment files — never commit real secrets
 .env
 .env.local
