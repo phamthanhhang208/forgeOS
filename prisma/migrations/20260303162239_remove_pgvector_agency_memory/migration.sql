@@ -5,7 +5,7 @@
 
 */
 -- DropForeignKey
-ALTER TABLE "AgencyMemory" DROP CONSTRAINT "AgencyMemory_agencyId_fkey";
+ALTER TABLE IF EXISTS "AgencyMemory" DROP CONSTRAINT IF EXISTS "AgencyMemory_agencyId_fkey";
 
 -- DropTable
-DROP TABLE "AgencyMemory";
+DROP TABLE IF EXISTS "AgencyMemory";

@@ -1,6 +1,3 @@
--- CreateExtension
-CREATE EXTENSION IF NOT EXISTS "vector";
-
 -- CreateEnum
 CREATE TYPE "ProjectMode" AS ENUM ('NEW', 'ITERATE');
 
@@ -71,18 +68,6 @@ CREATE TABLE "Deployment" (
     CONSTRAINT "Deployment_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "AgencyMemory" (
-    "id" TEXT NOT NULL,
-    "agencyId" TEXT NOT NULL,
-    "projectSummary" TEXT NOT NULL,
-    "tags" TEXT[],
-    "embedding" vector(768),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "AgencyMemory_pkey" PRIMARY KEY ("id")
-);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "Deployment_projectId_key" ON "Deployment"("projectId");
 
@@ -95,5 +80,3 @@ ALTER TABLE "AgentOutput" ADD CONSTRAINT "AgentOutput_projectId_fkey" FOREIGN KE
 -- AddForeignKey
 ALTER TABLE "Deployment" ADD CONSTRAINT "Deployment_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "AgencyMemory" ADD CONSTRAINT "AgencyMemory_agencyId_fkey" FOREIGN KEY ("agencyId") REFERENCES "Agency"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
