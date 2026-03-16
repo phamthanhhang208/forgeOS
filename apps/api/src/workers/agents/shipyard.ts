@@ -1,4 +1,3 @@
-import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { prisma } from "../../prisma";
@@ -110,22 +109,15 @@ export async function runShipyard(
     await fs.promises.rm(localPath, { recursive: true, force: true });
     await fs.promises.mkdir(localPath, { recursive: true });
 
-    await timed(projectId, "Step A: git clone boilerplate", async () => {
-      execSync(
-        `git clone https://${githubToken}@github.com/${boilerplateRepo}.git ${localPath}`,
-        { stdio: "pipe" },
+    const [boilerplateOwner, boilerplateRepoName] = boilerplateRepo.split("/");
+    await timed(projectId, "Step A: download boilerplate archive", async () => {
+      await github.cloneRepo(
+        boilerplateOwner,
+        boilerplateRepoName,
+        boilerplateSHA,
+        localPath,
+        settings,
       );
-    });
-
-    await timed(projectId, "Step A: checkout SHA + remove .git", async () => {
-      execSync(`git checkout ${boilerplateSHA}`, {
-        cwd: localPath,
-        stdio: "pipe",
-      });
-      await fs.promises.rm(path.join(localPath, ".git"), {
-        recursive: true,
-        force: true,
-      });
     });
 
     await timed(
@@ -225,23 +217,18 @@ export async function runShipyard(
       githubFullName = repo.full_name;
 
       await timed(projectId, "Step B: push code to main", () =>
-        github.pushDirectory(localPath, repo.clone_url),
+        github.pushDirectory(localPath, repo.owner.login, repo.name, 'main', settings),
       );
     } else {
       const branchName = `feat/${slugify(data.iterationPrompt ?? "update")}-${Date.now()}`;
       const [owner, repo] = (data.existingGithubRepo ?? "").split("/");
-      const githubToken = settings.githubToken || process.env.GITHUB_TOKEN!;
 
       await timed(projectId, `Step B: create branch ${branchName}`, () =>
         github.createBranch(owner, repo, branchName, settings),
       );
 
       await timed(projectId, "Step B: push iterated code", () =>
-        github.pushDirectory(
-          localPath,
-          `https://${githubToken}@github.com/${owner}/${repo}.git`,
-          branchName,
-        ),
+        github.pushDirectory(localPath, owner, repo, branchName, settings),
       );
 
       const pr = await timed(projectId, "Step B: create PR", () =>
