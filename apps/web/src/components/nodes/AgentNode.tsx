@@ -11,6 +11,7 @@ import {
     FileSearch,
     Play,
     RotateCcw,
+    Kanban,
 } from 'lucide-react'
 import { BaseNode } from './BaseNode'
 import { usePipelineStore } from '../../store/pipeline.store'
@@ -29,7 +30,9 @@ export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
     const openPanel = usePipelineStore((s) => s.openPanel)
     const approveNode = usePipelineStore((s) => s.approveNode)
     const retryNode = usePipelineStore((s) => s.retryNode)
+    const openKanban = usePipelineStore((s) => s.openKanban)
     const { status, label, version } = data
+    const isTechLead = data.id === 3
 
     const isLocked = status === NodeStatus.LOCKED
     const isQueued = status === NodeStatus.QUEUED
@@ -147,6 +150,16 @@ export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
                     <div style={{ marginTop: '6px' }}>
                         <ConfidenceBadge score={data.confidence} size="sm" />
                     </div>
+                )}
+
+                {/* Kanban button for Tech Lead node */}
+                {isTechLead && isApproved && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); openKanban() }}
+                        className="nodrag flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-accent-primary/10 border border-accent-primary/40 text-accent-primary rounded-md px-2 py-1.5 hover:bg-accent-primary/20 transition-colors mt-1"
+                    >
+                        <Kanban size={11} /> Kanban Board
+                    </button>
                 )}
 
                 {/* Version Info */}

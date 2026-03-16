@@ -94,15 +94,16 @@ export const github = {
     },
 
     pushDirectory: async (localPath: string, remoteUrl: string, branchName: string = 'main') => {
-        const exec = require('child_process').execSync
-        exec(`rm -rf .git`, { cwd: localPath })
-        exec(`git init`, { cwd: localPath })
-        exec(`git config user.email "forgeos@shipyard.ai"`, { cwd: localPath })
-        exec(`git config user.name "ForgeOS Shipyard"`, { cwd: localPath })
-        exec(`git checkout -b ${branchName}`, { cwd: localPath })
-        exec(`git add .`, { cwd: localPath })
-        exec(`git commit -m "ForgeOS Init"`, { cwd: localPath })
-        exec(`git remote add origin ${remoteUrl}`, { cwd: localPath })
-        exec(`git push -u origin ${branchName} --force`, { cwd: localPath })
+        const { execFileSync, execSync } = require('child_process')
+        const git = (...args: string[]) => execFileSync('git', args, { cwd: localPath, stdio: 'pipe' })
+        execSync('rm -rf .git', { cwd: localPath, shell: '/bin/bash' })
+        git('init')
+        git('config', 'user.email', 'forgeos@shipyard.ai')
+        git('config', 'user.name', 'ForgeOS Shipyard')
+        git('checkout', '-b', branchName)
+        git('add', '.')
+        git('commit', '-m', 'ForgeOS Init')
+        git('remote', 'add', 'origin', remoteUrl)
+        git('push', '-u', 'origin', branchName, '--force')
     },
 }

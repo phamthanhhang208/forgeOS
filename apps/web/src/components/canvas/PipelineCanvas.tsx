@@ -4,13 +4,10 @@ import {
     Background,
     Controls,
     MiniMap,
-    Panel,
     EdgeTypes,
     NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Kanban } from 'lucide-react'
-import { NodeStatus } from '@forgeos/shared'
 import { usePipelineStore } from '../../store/pipeline.store'
 import { InputNode } from '../nodes/InputNode'
 import { AgentNode } from '../nodes/AgentNode'
@@ -29,8 +26,6 @@ const edgeTypes: EdgeTypes = {
 
 export function PipelineCanvas({ concept }: { concept: string }) {
     const nodes = usePipelineStore((s) => s.nodes)
-    const openKanban = usePipelineStore((s) => s.openKanban)
-    const hasKanbanData = nodes[3]?.status === NodeStatus.APPROVED
 
     // Layout positions — ~260px gap keeps all 5 nodes visible in most viewports
     // Explicit width/height ensures MiniMap can render node rectangles
@@ -130,17 +125,6 @@ export function PipelineCanvas({ concept }: { concept: string }) {
             >
                 <Background gap={28} size={1} color="var(--border)" />
                 <Controls showInteractive={false} />
-                {hasKanbanData && (
-                    <Panel position="bottom-left">
-                        <button
-                            onClick={openKanban}
-                            className="flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider text-accent-primary bg-bg-base border border-accent-primary/40 rounded-md hover:bg-accent-primary/10 transition-colors shadow-lg"
-                        >
-                            <Kanban size={14} />
-                            Kanban Board
-                        </button>
-                    </Panel>
-                )}
                 <MiniMap
                     nodeStrokeWidth={2}
                     zoomable
