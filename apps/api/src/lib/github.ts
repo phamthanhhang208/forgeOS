@@ -51,6 +51,22 @@ async function collectFiles(
     return results
 }
 
+/**
+ * Wait for a newly created repo's initial commit (from auto_init) to be ready.
+ * The Git Data API (blobs, trees) returns 409 on empty repos.
+ */
+async function waitForRepoInit(octokit: Octokit, owner: string, repo: string, maxAttempts = 10): Promise<void> {
+    for (let i = 0; i < maxAttempts; i++) {
+        try {
+            await octokit.repos.getContent({ owner, repo, path: '' })
+            return // Repo has content, initial commit is ready
+        } catch (e: any) {
+            if (i === maxAttempts - 1) throw new Error(`Repo ${owner}/${repo} still empty after ${maxAttempts} attempts`)
+            await new Promise(r => setTimeout(r, 1000))
+        }
+    }
+}
+
 export const github = {
     createRepo: async (name: string, description: string, settings?: Partial<AgencySettings>) => {
         const cfg = resolveConfig(settings)
@@ -176,7 +192,10 @@ export const github = {
         const files = await collectFiles(localPath)
         console.log(`[GitHub] Pushing ${files.length} files to ${owner}/${repo}@${branchName}`)
 
-        // 2. Create blobs for each file
+        // 2. Ensure repo is initialized (auto_init commit may not be ready yet)
+        await waitForRepoInit(octokit, owner, repo)
+
+        // 3. Create blobs for each file
         const treeItems: Array<{
             path: string
             mode: '100644' | '100755'
@@ -199,7 +218,7 @@ export const github = {
             })
         }
 
-        // 3. Get existing branch ref (parent commit) if it exists
+        // 4. Get existing branch ref (parent commit) if it exists
         let parentSha: string | undefined
         try {
             const ref = await octokit.git.getRef({ owner, repo, ref: `heads/${branchName}` })
@@ -208,14 +227,14 @@ export const github = {
             // Branch doesn't exist yet — will create it
         }
 
-        // 4. Create tree (with base_tree if we have a parent, for efficiency)
+        // 5. Create tree
         const tree = await octokit.git.createTree({
             owner,
             repo,
             tree: treeItems,
         })
 
-        // 5. Create commit
+        // 6. Create commit
         const commit = await octokit.git.createCommit({
             owner,
             repo,
@@ -229,7 +248,7 @@ export const github = {
             },
         })
 
-        // 6. Create or update the branch ref
+        // 7. Create or update the branch ref
         if (parentSha) {
             await octokit.git.updateRef({
                 owner,
