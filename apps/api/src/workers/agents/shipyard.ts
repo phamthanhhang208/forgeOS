@@ -92,6 +92,15 @@ export async function runShipyard(
   const localPath = `/tmp/forgeos/repos/${projectId}`;
 
   // ─── STEP A: Clone & Inject ───────────────────────────────────────────────
+  // Re-run step A if local files are gone (e.g. /tmp wiped between deploys)
+  const localPathExists = await fs.promises.access(localPath).then(() => true, () => false);
+  if (deployment.stepADone && !localPathExists) {
+    await log(projectId, "warn", "Step A was done but local files are gone — re-running");
+    deployment = await prisma.deployment.update({
+      where: { projectId },
+      data: { stepADone: false },
+    });
+  }
   if (!deployment.stepADone) {
     const stepAStart = Date.now();
     await publishEvent(projectId, {
@@ -196,6 +205,13 @@ export async function runShipyard(
   }
 
   // ─── STEP B: Push to GitHub ───────────────────────────────────────────────
+  // If step A was re-run, force step B to re-run too
+  if (deployment.stepBDone && !localPathExists) {
+    deployment = await prisma.deployment.update({
+      where: { projectId },
+      data: { stepBDone: false },
+    });
+  }
   if (!deployment.stepBDone) {
     const stepBStart = Date.now();
     await publishEvent(projectId, {
