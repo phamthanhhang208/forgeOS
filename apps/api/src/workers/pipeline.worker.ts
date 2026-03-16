@@ -1,4 +1,5 @@
 import { Worker, Job } from "bullmq";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { publishEvent } from "../lib/pubsub";
 import { NodeStatus } from "@forgeos/shared";
