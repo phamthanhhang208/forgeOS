@@ -94,9 +94,12 @@ export const github = {
     },
 
     pushDirectory: async (localPath: string, remoteUrl: string, branchName: string = 'main') => {
-        const { execFileSync, execSync } = require('child_process')
+        const { execFileSync } = require('child_process')
+        const fs = require('fs')
+        const path = require('path')
         const git = (...args: string[]) => execFileSync('git', args, { cwd: localPath, stdio: 'pipe' })
-        execSync('rm -rf .git', { cwd: localPath, shell: '/bin/bash' })
+        const gitDir = path.join(localPath, '.git')
+        if (fs.existsSync(gitDir)) fs.rmSync(gitDir, { recursive: true, force: true })
         git('init')
         git('config', 'user.email', 'forgeos@shipyard.ai')
         git('config', 'user.name', 'ForgeOS Shipyard')
