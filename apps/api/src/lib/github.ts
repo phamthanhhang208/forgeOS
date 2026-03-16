@@ -63,6 +63,7 @@ export const github = {
                 name,
                 description,
                 private: false,
+                auto_init: true,
             })
             return response.data
         } catch (e: any) {
@@ -79,6 +80,7 @@ export const github = {
                         name,
                         description,
                         private: false,
+                        auto_init: true,
                     })
                     return response.data
                 } catch (e2: any) {
@@ -197,19 +199,29 @@ export const github = {
             })
         }
 
-        // 3. Create tree
+        // 3. Get existing branch ref (parent commit) if it exists
+        let parentSha: string | undefined
+        try {
+            const ref = await octokit.git.getRef({ owner, repo, ref: `heads/${branchName}` })
+            parentSha = ref.data.object.sha
+        } catch {
+            // Branch doesn't exist yet — will create it
+        }
+
+        // 4. Create tree (with base_tree if we have a parent, for efficiency)
         const tree = await octokit.git.createTree({
             owner,
             repo,
             tree: treeItems,
         })
 
-        // 4. Create commit (no parent — fresh initial commit)
+        // 5. Create commit
         const commit = await octokit.git.createCommit({
             owner,
             repo,
             message: 'ForgeOS Init',
             tree: tree.data.sha,
+            parents: parentSha ? [parentSha] : [],
             author: {
                 name: 'ForgeOS Shipyard',
                 email: 'forgeos@shipyard.ai',
@@ -217,27 +229,22 @@ export const github = {
             },
         })
 
-        // 5. Create or update the branch ref
-        try {
+        // 6. Create or update the branch ref
+        if (parentSha) {
+            await octokit.git.updateRef({
+                owner,
+                repo,
+                ref: `heads/${branchName}`,
+                sha: commit.data.sha,
+                force: true,
+            })
+        } else {
             await octokit.git.createRef({
                 owner,
                 repo,
                 ref: `refs/heads/${branchName}`,
                 sha: commit.data.sha,
             })
-        } catch (e: any) {
-            if (e.status === 422) {
-                // Branch already exists — force update
-                await octokit.git.updateRef({
-                    owner,
-                    repo,
-                    ref: `heads/${branchName}`,
-                    sha: commit.data.sha,
-                    force: true,
-                })
-            } else {
-                throw e
-            }
         }
 
         console.log(`[GitHub] Push complete: ${commit.data.sha}`)
