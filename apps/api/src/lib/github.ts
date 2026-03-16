@@ -97,6 +97,8 @@ export const github = {
         const exec = require('child_process').execSync
         exec(`rm -rf .git`, { cwd: localPath })
         exec(`git init`, { cwd: localPath })
+        exec(`git config user.email "forgeos@shipyard.ai"`, { cwd: localPath })
+        exec(`git config user.name "ForgeOS Shipyard"`, { cwd: localPath })
         exec(`git checkout -b ${branchName}`, { cwd: localPath })
         exec(`git add .`, { cwd: localPath })
         exec(`git commit -m "ForgeOS Init"`, { cwd: localPath })
